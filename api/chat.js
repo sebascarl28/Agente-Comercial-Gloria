@@ -3,7 +3,7 @@ import {esEscenarioPC3,PRIMERA_ENTREGA_PC3,SEGUNDA_ENTREGA_PC3} from '../lib/esc
 import {enSimulacion,consulta,uno} from '../lib/db.js';
 import {respuesta,errorJson,revisarAcceso,metodo,falla,obligatorio} from '../lib/http.js';
 import {interpretar} from '../lib/ai.js';
-import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
+import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
 import {contextoCliente,crearCotizacion,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea} from '../lib/service.js';
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura} from '../lib/rules.js';
 import {siguientePaso,estadoComercial,pendientesDescuento,resumenHabilitado,firmaCondiciones,confirmacionVigente,creditoInsuficiente} from '../lib/negociacion.js';
@@ -111,8 +111,18 @@ async function atender(req,res){
      q=await crearCotizacion(idCliente,'PRD-001',180);
      q=await cambiarLinea(q.id_cotizacion,'PRD-002',60,{modo:'AGREGAR'});
      q=await cambiarLinea(q.id_cotizacion,'PRD-003',120,{modo:'AGREGAR'});
-     estado.producto='PRD-002';estado.esperando='ELEGIR_FECHA';
-     mensaje='Preparé el caso sintético SOL-LA-002: 180 cajas UHT, 60 de evaporada de 400 g y 120 de fresca (360 en total). Según el ERP simulado, para el 16/11/2026 solo podemos cubrir 340: faltan 20 de evaporada. Planeamiento prevé esas 20 desde el 17/11 por la orden OP-EVA-1711, sujetas a Calidad y despacho. Hubo una parada simulada de 2 h en la cerradora el 13/11. ¿Te propongo 340 para el 16 y 20 de evaporada para el 17?';
+     const reparto=await proponerEntrega(q.id_cotizacion,{modo:'DOS_PARTES'});
+     q=reparto.cotizacion;
+     estado.producto='PRD-002';estado.esperando='ACEPTAR_ENTREGA';
+     mensaje='Preparé el caso sintético SOL-LA-002: 180 cajas UHT, 60 de evaporada de 400 g y 120 de fresca (360 en total). Para el 16/11/2026 hay 340 cajas cubiertas y faltan 20 de evaporada. Planeamiento prevé 20 para el 17/11 (OP-EVA-1711) tras la parada de 2 h de la cerradora el 13/11. '+reparto.mensaje;
+   } else if(q?.entregas?.length && !q.entrega_aceptada && mencionaRepartoConAceptacion(texto)){
+     if(aceptaRepartoPropuesto(texto,q.entregas)){
+       const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;
+       mensaje=`Perfecto: aceptaste el reparto de ${q.entregas.reduce((n,p)=>n+Number(p.cajas),0)} cajas en las fechas propuestas, sujeto a Calidad y logística.\n${siguienteNatural(q,estado)}`;
+     } else {
+       estado.esperando='ACEPTAR_ENTREGA';
+       mensaje=`Antes de registrar tu aceptación, necesito confirmar las cantidades y fechas exactas: ${q.entregas.map(x=>`${x.cajas} cajas de ${nombres[x.id_producto]||'leche'} para el ${fecha(x.fecha)}`).join('; ')}. ¿Aceptas este esquema o prefieres modificarlo?`;
+     }
    } else if(esEscenarioPC3() && /\b(?:cerradora|mantenimiento|parada\s+de\s+2|por\s+que\s+falta\s+evaporada)\b/.test(d.textoNormalizado)){
      mensaje='En el escenario PC3, la cerradora tiene una parada programada de 2 horas el 13/11/2026 (VEN-CIE-001). La capacidad de la línea en tres turnos baja de 19,200 a 17,600 cajas frente a 18,000 de carga (brecha de 400). Para La Alameda, se observa un faltante específico de 20 cajas de evaporada el 16/11 y se plantea OP-EVA-1711 para el 17/11. Las 400 cajas son una brecha agregada de capacidad, no 400 cajas faltantes en el pedido.';
    } else if(estado.esperando==='CONFIRMAR_TIPO_LECHE' && esConfirmacionCorta(texto)){
