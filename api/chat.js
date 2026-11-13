@@ -298,7 +298,7 @@ async function atender(req,res){
      mensaje=estadoComercial({q,contexto,tema});
      if(tema==='descuento' && pendientesDescuento(q)?.estado==='OFERTADO')estado.esperando='ACEPTAR_DESCUENTO';
    } else if(d.accion==='CATALOGO'){
-     mensaje='Tenemos leche UHT entera 1 L, evaporada 410 g y fresca 1 L. También puedo consultar stock y precios sin que tengas que crear un pedido. ¿Cuál te interesa?';
+     mensaje='Tenemos leche UHT entera 1 L, evaporada 400 g y fresca 1 L. También puedo consultar stock y precios sin que tengas que crear un pedido. ¿Cuál te interesa?';
    } else if(d.accion==='ENTREGA' || d.accion==='FECHA' || d.accion==='FECHA_RELATIVA'){
      if(!q){estado.esperando=estado.producto?'PEDIR_CANTIDAD':'PEDIR_PRODUCTO';mensaje=estado.producto?`¿Cuántas cajas de ${nombres[estado.producto]} necesitas?`:'¿Qué leche y cuántas cajas necesitas?';}
      else {
