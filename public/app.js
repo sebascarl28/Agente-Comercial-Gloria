@@ -1,6 +1,12 @@
 const $ = (sel,root=document) => root.querySelector(sel);
 const $$ = (sel,root=document) => [...root.querySelectorAll(sel)];
 const ES_CASO_PC3=new URLSearchParams(location.search).get('escenario')==='pc3';
+const PENDIENTE_MENSAJE_PC3='gloria_demo_pc3_mensaje_pendiente';
+function solicitaCasoPC3(texto=''){
+  const m=String(texto).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return /\b(?:caso\s+pc\s*3|escenario\s+pc\s*3|caso\s+del\s+informe)\b/.test(m)
+    && /\b(?:quiero|prepara|preparar|iniciar|inicia|simular|mostrar|probar|trabajar|activar)\b/.test(m);
+}
 const DEMO_SESION_KEY=ES_CASO_PC3?'gloria_demo_session_pc3_informe':'gloria_demo_session_v1';
 function nuevaSesionId(){
   const id=crypto.randomUUID();
@@ -8,7 +14,7 @@ function nuevaSesionId(){
   return id;
 }
 const sesionActual=sessionStorage.getItem(DEMO_SESION_KEY)||nuevaSesionId();
-const app={sesionId:sesionActual,view:'chat' ,clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},pins:{finanzas:sessionStorage.getItem('finanzas_pin')||'',jefatura:sessionStorage.getItem('jefatura_pin')||''},demoPin:sessionStorage.getItem('demo_pin')||'',ultimoMotor:null,busy:false};
+const app={sesionId:sesionActual,view:'chat' ,clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},pins:{finanzas:sessionStorage.getItem('finanzas_pin')||'',jefatura:sessionStorage.getItem('jefatura_pin')||''},demoPin:sessionStorage.getItem('demo_pin')||'',ultimoMotor:null,diagnosticoGroq:null,busy:false};
 const esc=x=>String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const money=x=>new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'}).format(Number(x||0));
 const day=x=>!x?'—':new Date(String(x).slice(0,10)+'T12:00:00Z').toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'});
@@ -98,26 +104,30 @@ function panelCasoPC3(){
   const e=app.datos?.escenario_pc3;
   if(!e)return '';
   const m=e.mantenimiento?.[0];
-  return `<div class="card" style="padding:14px 20px;margin:0 0 15px;border-left:4px solid #0c58ca;background:#f3f7ff">
-    <strong>CASO PC3 · La Alameda · Escenario fijo al 13/11/2026</strong>
-    <p style="margin:7px 0">360 cajas: 180 UHT + 60 evaporada de 400 g + 120 fresca. <b>Disponibles para el 16/11: 340/360</b>; faltan <b>20 de evaporada</b>. Orden <b>OP-EVA-1711</b>: 20 previstas el <b>17/11</b> (condicionales).</p>
-    <p style="margin:6px 0">Mantenimiento de cerradora: ${esc(m?.duracion_horas||2)} h el 13/11 · Capacidad simulada: 19,200 → 17,600 cajas · Brecha agregada: 400.</p>
-    <div class="chat-actions" style="margin-top:8px"><button class="quick-btn" data-chat-suggest="Quiero preparar el caso PC3 del informe">Preparar caso 360 cajas</button><button class="quick-btn" data-chat-suggest="¿Qué pasó con la cerradora y cómo afecta la producción?">Explicar mantenimiento</button></div>
-    <small>Datos académicos sintéticos. Propuesta comercial no equivale a entrega confirmada; requiere cliente, Calidad y logística.</small>
-  </div>`;
+  return `<details class="card" style="padding:12px 18px;margin:0 0 15px;border-left:4px solid #0c58ca;background:#f3f7ff">
+    <summary style="cursor:pointer;font-weight:700">Caso PC3 · Datos del escenario (consulta opcional)</summary>
+    <p style="margin:9px 0 5px">Solicitud: 180 cajas UHT, 60 de evaporada 400 g y 120 de fresca. Inventario liberado para el 16/11: 340 de las 360 cajas. Las otras 20 son de evaporada y se prevén desde el 17/11 por OP-EVA-1711; no hay promesa de despacho.</p>
+    <p style="margin:6px 0">Parada de cerradora: ${esc(m?.duracion_horas||2)} h el 13/11. Capacidad: 19,200 → 17,600 cajas; brecha agregada: 400.</p>
+    <small>Información académica sintética. Para iniciar el caso, escribe tu solicitud en el chat. Stock, Calidad, logística y aceptación se validan por separado.</small>
+  </details>`;
+}
+function selectorEscenario(){
+  const normal=ES_CASO_PC3?'':' selected';
+  const pc3=ES_CASO_PC3?' selected':'';
+  return `<div class="scenario-nav" aria-label="Elegir modo de demostración"><span>Modo de demostración:</span><a class="scenario-link${normal}" href="/" ${!ES_CASO_PC3?'aria-current="page"':''}>Venta normal</a><a class="scenario-link${pc3}" href="/?escenario=pc3" ${ES_CASO_PC3?'aria-current="page"':''}>Caso PC3 · 360 cajas</a></div>`;
 }
 function chatView(){
   const mensajes=app.mensajes.length?app.mensajes:welcome();
   const q=quote();
   const qactions=sugerenciasDelMomento(q);
-  return `${head('🤖','Atención Comercial con IA','Conversa, cotiza, negocia y gestiona pedidos.')}
+  return `${selectorEscenario()}${head('🤖','Atención Comercial con IA','Conversa, cotiza, negocia y gestiona pedidos.')}
   <div class="toolbar" style="display:flex;justify-content:flex-end;margin-top:-12px;margin-bottom:12px">
     <button class="btn outline" type="button" data-nueva-simulacion title="Nueva sesión independiente con los mismos datos originales">↻ Nueva simulación</button>
   </div>${barCliente()}${panelCasoPC3()}
   <section class="card chat-card" aria-label="Conversación"><div class="chat-messages" id="chatHistory">${mensajes.map(m=>`<div class="chat-row ${m.rol==='cliente'?'client':'agente'}">${m.rol==='cliente'?'':'<div class="avatar">🤖</div>'}<div class="bubble">${esc(m.texto)}<div class="msg-meta">${m.fecha?new Date(m.fecha).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Lima'}):''}</div></div></div>`).join('')}</div></section>
   <div class="chat-actions">${qactions.map(([label,mensaje])=>`<button class="quick-btn" data-chat-suggest="${esc(mensaje)}">${esc(label)}</button>`).join('')}</div>
   <form id="chatForm" class="composer"><textarea id="chatMessage" placeholder="Escribe tu mensaje al Agente Comercial Gloria..." aria-label="Mensaje" rows="1" maxlength="1200" required></textarea><button title="Enviar" aria-label="Enviar mensaje" type="submit" ${app.busy?'disabled':''}>➤</button></form>
-  <p class="compact-note">${app.ultimoMotor==='groq'?'✓ Groq respondió · Operaciones validadas por el backend':app.ultimoMotor==='respaldo_groq'?'⚠ Modo guiado: Groq no respondió. Revisa Vercel → Logs y GROQ_API_KEY/GROQ_MODEL.':app.ultimoMotor==='reglas_sin_groq'?'Modo guiado: falta configurar GROQ_API_KEY.':app.datos.con_groq?'Groq configurado · Envía un mensaje para verificar la conexión':'Modo guiado: falta GROQ_API_KEY.'}</p>
+  <p class="compact-note">${app.ultimoMotor==='groq'?'✓ Groq respondió · Operaciones validadas por el backend':app.ultimoMotor==='respaldo_groq'?`⚠ Groq no respondió (${esc(app.diagnosticoGroq||'causa por revisar')}). Modo guiado activo; revisa Vercel → Logs → /api/chat.`:app.ultimoMotor==='reglas_sin_groq'?'Modo guiado: falta configurar GROQ_API_KEY.':app.datos.con_groq?'Groq configurado · Envía un mensaje para verificar la conexión':'Modo guiado: falta GROQ_API_KEY.'}</p>
   ${creditoOferta()?creditoOferta():''}${mostrarResumenFinal(q)?summaryView(q):''}`;
 }
 function creditoOferta(){const c=app.datos.cliente?.creditos?.find(x=>x.estado==='OFERTADO');if(!c)return '';return `<section class="card panel" style="margin-top:12px"><strong>🏦 Finanzas respondió a tu solicitud</strong><p>Se ha autorizado ofrecer ${money(c.monto_ofrecido)} a ${c.plazo_ofrecido} días; la línea todavía no está activada.</p><div class="chat-actions">${button('Aceptar crédito',`data-responder-credit="${esc(c.id_solicitud)}" data-acepta="true"`,'primary')}${button('Rechazar oferta',`data-responder-credit="${esc(c.id_solicitud)}" data-acepta="false"`,'outline')}</div></section>`;}
@@ -184,9 +194,17 @@ function formCredito(){const previo=Number(app.datos?.cliente?.cliente?.linea_cr
 function formCliente(){modal('Registrar cliente nuevo',`<p>Solo mayoristas o distribuidores. Ejemplo con datos ficticios.</p><form id="modalClient" class="form-grid"><label class="field wide">Razón social<input name="razon_social" required maxlength="120" placeholder="Distribuidora Ejemplo S.A.C."/></label><label class="field">RUC de prueba<input name="ruc" required pattern="[0-9]{11}" maxlength="11" placeholder="20600000004"/></label><label class="field">Segmento<select name="segmento"><option value="MAYORISTA">Mayorista</option><option value="DISTRIBUIDOR">Distribuidor</option></select></label><label class="field">Contacto<input name="contacto" required placeholder="Persona encargada"/></label><label class="field">Celular<input name="celular" required placeholder="900000404"/></label><label class="field wide">Correo<input name="correo" type="email" required placeholder="contacto@ejemplo.invalid"/></label><label class="field wide">Dirección<input name="direccion" required placeholder="Av. Ejemplo 123"/></label><label class="field">Distrito<input name="distrito" required placeholder="Ate"/></label><button class="btn" type="submit">Guardar cliente</button></form>`);}
 async function cargarStaff(rol){try{const a=await api('/api/gestion?rol='+rol,{staff:rol});app.staff[rol]=a.solicitudes;render();}catch(err){toast(err.message,true);app.staff[rol]=[];render();}}
 async function action(accion,rest={},notify=true){const d=await api('/api/action',{method:'POST',body:{accion,...rest}});const r=d.resultado;if(notify)toast(r.mensaje||'Operación realizada.');if(r.cotizacion?.id_cotizacion)app.cotizacionId=r.cotizacion.id_cotizacion; if(r.id_cotizacion)app.cotizacionId=r.id_cotizacion;await cargar({silencioso:true});return r;}
-async function sendChat(){const textarea=$('#chatMessage');const msg=textarea?.value.trim();if(!msg||app.busy)return;app.busy=true;const history=$('.chat-messages');if(history)history.insertAdjacentHTML('beforeend',`<div class="chat-row client"><div class="bubble">${esc(msg)}</div></div>`);textarea.value='';try{
+async function sendChat(){const textarea=$('#chatMessage');const msg=textarea?.value.trim();if(!msg||app.busy)return;
+  if(!ES_CASO_PC3 && solicitaCasoPC3(msg)){
+    // Mantener la sesión normal y abrir una copia independiente de los datos PC3.
+    sessionStorage.setItem('gloria_demo_session_pc3_informe',crypto.randomUUID());
+    sessionStorage.setItem(PENDIENTE_MENSAJE_PC3,msg);
+    location.assign('/?escenario=pc3');
+    return;
+  }
+  app.busy=true;const history=$('.chat-messages');if(history)history.insertAdjacentHTML('beforeend',`<div class="chat-row client"><div class="bubble">${esc(msg)}</div></div>`);textarea.value='';try{
   const d=await api('/api/chat',{method:'POST',body:{mensaje:msg,id_cliente:app.clienteId,id_conversacion:app.conversacionId,id_cotizacion:app.cotizacionId}});
-  app.mensajes=d.mensajes;app.ultimoMotor=d.motor;app.conversacionId=d.id_conversacion;if(d.cotizacion?.id_cotizacion)app.cotizacionId=d.cotizacion.id_cotizacion;await cargar({silencioso:true});
+  app.mensajes=d.mensajes;app.ultimoMotor=d.motor;app.diagnosticoGroq=d.diagnostico_groq||null;app.conversacionId=d.id_conversacion;if(d.cotizacion?.id_cotizacion)app.cotizacionId=d.cotizacion.id_cotizacion;await cargar({silencioso:true});
  }catch(err){toast(err.message,true);app.mensajes.push({rol:'cliente',texto:msg,fecha:new Date().toISOString()});render();}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}
 }
 async function run(fn){if(app.busy)return;app.busy=true;try{await fn();}catch(err){toast(err.message,true);}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}}
@@ -211,7 +229,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('button');if(!el
     if(!confirm('¿Iniciar otra simulación limpia? Se conservarán los datos originales de Gloria.'))return;
     app.sesionId=nuevaSesionId();
     app.view='chat';app.clienteId='CLI-LA-001';app.cotizacionId=null;app.conversacionId=null;
-    app.mensajes=[];app.datos=null;app.staff={finanzas:[],jefatura:[]};app.ultimoMotor=null;
+    app.mensajes=[];app.datos=null;app.staff={finanzas:[],jefatura:[]};app.ultimoMotor=null;app.diagnosticoGroq=null;
     return cargar();
   }
   if(el.dataset.close!==undefined)return cerrarModal();
@@ -231,4 +249,16 @@ document.addEventListener('click',e=>{const el=e.target.closest('button');if(!el
   if(el.dataset.responderCredit!==undefined)return run(()=>action('responder_credito',{id_solicitud:el.dataset.responderCredit,aceptar:el.dataset.acepta==='true'}));
   if(el.dataset.staffDecision!==undefined)return run(async()=>{const rol=el.dataset.rol,c=el.closest('[data-staff-card]');const val=key=>c.querySelector(`[data-value="${key}"]`)?.value;const body={rol,id_solicitud:el.dataset.id,decision:el.dataset.staffDecision,comentario:val('comentario')||''};if(rol==='finanzas'){body.monto=Number(val('monto'));body.plazo_dias=Number(val('plazo'));}else body.porcentaje=Number(val('pct'));const r=await api('/api/gestion',{method:'POST',staff:rol,body});toast(r.resultado.mensaje);await cargarStaff(rol);await cargar({silencioso:true});});
 });
-cargar();
+async function iniciarAplicacion(){
+  await cargar();
+  // Tras entrar al caso desde el chat normal, enviar el mensaje que lo activó.
+  if(ES_CASO_PC3 && app.datos){
+    const pendiente=sessionStorage.getItem(PENDIENTE_MENSAJE_PC3);
+    if(pendiente){
+      sessionStorage.removeItem(PENDIENTE_MENSAJE_PC3);
+      const input=$('#chatMessage');
+      if(input){input.value=pendiente;await sendChat();}
+    }
+  }
+}
+iniciarAplicacion();
