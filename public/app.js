@@ -89,6 +89,7 @@ function summaryView(q){
   const ap=q.aprobaciones?.find(x=>['PENDIENTE_JEFATURA','OFERTADO'].includes(x.estado));
   const credito=app.datos.cliente?.creditos?.find(x=>x.estado==='OFERTADO');
   const deliveries=q.entregas?.length?q.entregas.map(e=>`${e.cajas} cajas · ${day(e.fecha)}${e.origen==='PRODUCCION'?' (producción pendiente QM)':''}`).join(' / '):'Pendiente de acordar';
+  const reservadas=q.estado==='CONFIRMADA'?(q.entregas||[]).filter(e=>e.origen==='STOCK').reduce((n,e)=>n+Number(e.cajas||0),0):0;
   const pendientes=[];if(!q.direccion_confirmada)pendientes.push('confirmar dirección');if(q.forma_pago==='SIN_DEFINIR')pendientes.push('definir pago');if(!q.entrega_aceptada)pendientes.push('aceptar entregas');if(ap)pendientes.push('resolver descuento con Jefatura y cliente');
   const listo=!pendientes.length&&q.estado!=='CONFIRMADA';
   return `<section class="card summary"><div class="summary-header"><h2>▤ Resumen final ${q.estado==='CONFIRMADA'?'del pedido':'de la cotización'} · V${q.version}</h2>${badge(q.estado==='CONFIRMADA'?'CONFIRMADA':pendientes.length?'EN NEGOCIACIÓN':'LISTA PARA CONFIRMAR',q.estado==='CONFIRMADA'||!pendientes.length?'success':'warn')}</div>
@@ -97,7 +98,8 @@ function summaryView(q){
     <div class="kv"><span class="key">Producto</span><span class="value">${esc(q.producto_nombre)}</span></div>
     <div class="kv"><span class="key">Dirección</span><span class="value">${esc((q.direccion||'')+', '+(q.distrito||''))} ${q.direccion_confirmada?'✓':'(por confirmar)'}</span></div>
     <div class="kv"><span class="key">Cantidad</span><span class="value">${q.cantidad} cajas</span></div>
-    <div class="kv"><span class="key">Stock libre al consultar</span><span class="value">${q.disponibilidad?.disponibles??0} cajas liberadas</span></div>
+    <div class="kv"><span class="key">${q.estado==='CONFIRMADA'?'Stock reservado para este pedido':'Stock disponible ahora'}</span><span class="value">${q.estado==='CONFIRMADA'?reservadas:(q.disponibilidad?.disponibles??0)} cajas ${q.estado==='CONFIRMADA'?'reservadas de lotes liberados':'liberadas'}</span></div>
+    ${q.estado==='CONFIRMADA'?`<div class="kv"><span class="key">Stock libre tras la reserva</span><span class="value">${q.disponibilidad?.disponibles??0} cajas para otros pedidos</span></div>`:''}
     <div class="kv"><span class="key">Descuento aplicado</span><span class="value">${q.descuento_pct}% ${ap?'(solicitud pendiente)':''}</span></div>
     <div class="kv"><span class="key">Pago</span><span class="value">${esc(q.forma_pago.replaceAll('_',' '))}</span></div>
     <div class="kv"><span class="key">Entrega</span><span class="value">${esc(deliveries)}</span></div>

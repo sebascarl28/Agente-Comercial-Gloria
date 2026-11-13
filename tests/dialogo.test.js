@@ -108,9 +108,15 @@ test('Pregunta si hay stock para 300 cajas sin iniciar pedido',()=>{
  assert.equal(r.cantidad,300);
 });
 
-test('Afirmación del cliente sobre reducción no depende de la clasificación de Groq',async()=>{
+test('Reducir cantidad exige consentimiento explícito, no un sí a entrega parcial',async()=>{
+ const {confirmaReduccion}=await import('../lib/dialogo.js');
+ assert.equal(confirmaReduccion('sí prefiero una entrega parcial',150),false);
+ assert.equal(confirmaReduccion('sí',150),false);
+ assert.equal(confirmaReduccion('acepto reducir a 150 cajas',150),true);
+ assert.equal(confirmaReduccion('ajustar a 150 cajas',150),true);
+ assert.equal(confirmaReduccion('acepto reducir a 200 cajas',150),false);
  const {readFileSync}=await import('node:fs');
  const code=readFileSync(new URL('../api/chat.js',import.meta.url),'utf8');
- assert.match(code,/estado\.esperando==='REDUCIR_CANTIDAD' && esAfirmacion\(texto\)/);
- assert.match(code,/d\.cantidad===estado\.cantidad_ofrecida/);
+ assert.match(code,/estado\.esperando==='REDUCIR_CANTIDAD' && confirmaReduccion\(texto,estado\.cantidad_ofrecida\)/);
+ assert.match(code,/estado\.esperando==='REDUCIR_CANTIDAD' && d\.modo==='DOS_PARTES'/);
 });
