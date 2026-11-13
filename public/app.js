@@ -1,6 +1,6 @@
 const $ = (sel,root=document) => root.querySelector(sel);
 const $$ = (sel,root=document) => [...root.querySelectorAll(sel)];
-const app={view:'chat',clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},pins:{finanzas:sessionStorage.getItem('finanzas_pin')||'',jefatura:sessionStorage.getItem('jefatura_pin')||''},demoPin:sessionStorage.getItem('demo_pin')||'',busy:false};
+const app={view:'chat',clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},pins:{finanzas:sessionStorage.getItem('finanzas_pin')||'',jefatura:sessionStorage.getItem('jefatura_pin')||''},demoPin:sessionStorage.getItem('demo_pin')||'',ultimoMotor:null,busy:false};
 const esc=x=>String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const money=x=>new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'}).format(Number(x||0));
 const day=x=>!x?'—':new Date(String(x).slice(0,10)+'T12:00:00Z').toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'});
@@ -62,7 +62,7 @@ function chatView(){
   <section class="card chat-card" aria-label="Conversación"><div class="chat-messages" id="chatHistory">${mensajes.map(m=>`<div class="chat-row ${m.rol==='cliente'?'client':'agente'}">${m.rol==='cliente'?'':'<div class="avatar">🤖</div>'}<div class="bubble">${esc(m.texto)}<div class="msg-meta">${m.fecha?new Date(m.fecha).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Lima'}):''}</div></div></div>`).join('')}</div></section>
   <div class="chat-actions">${qactions.map(([label,fast])=>`<button class="quick-btn" data-fast="${fast}">${esc(label)}</button>`).join('')}</div>
   <form id="chatForm" class="composer"><textarea id="chatMessage" placeholder="Escribe tu mensaje al Agente Comercial Gloria..." aria-label="Mensaje" rows="1" maxlength="1200" required></textarea><button title="Enviar" aria-label="Enviar mensaje" type="submit" ${app.busy?'disabled':''}>➤</button></form>
-  <p class="compact-note">${app.datos.con_groq?'IA conectable: Groq · Validaciones comerciales en el servidor':'Sin clave Groq: modo guiado por reglas. Configura GROQ_API_KEY para conversación natural.'}</p>
+  <p class="compact-note">${app.ultimoMotor==='groq'?'✓ Groq respondió · Operaciones validadas por el backend':app.ultimoMotor==='respaldo_groq'?'⚠ Modo guiado: Groq no respondió. Revisa Vercel → Logs y GROQ_API_KEY/GROQ_MODEL.':app.ultimoMotor==='reglas_sin_groq'?'Modo guiado: falta configurar GROQ_API_KEY.':app.datos.con_groq?'Groq configurado · Envía un mensaje para verificar la conexión':'Modo guiado: falta GROQ_API_KEY.'}</p>
   ${creditoOferta()?creditoOferta():''}${q?summaryView(q):''}`;
 }
 function creditoOferta(){const c=app.datos.cliente?.creditos?.find(x=>x.estado==='OFERTADO');if(!c)return '';return `<section class="card panel" style="margin-top:12px"><strong>🏦 Finanzas respondió a tu solicitud</strong><p>Se ha autorizado ofrecer ${money(c.monto_ofrecido)} a ${c.plazo_ofrecido} días; la línea todavía no está activada.</p><div class="chat-actions">${button('Aceptar crédito',`data-responder-credit="${esc(c.id_solicitud)}" data-acepta="true"`,'primary')}${button('Rechazar oferta',`data-responder-credit="${esc(c.id_solicitud)}" data-acepta="false"`,'outline')}</div></section>`;}
@@ -129,7 +129,7 @@ async function cargarStaff(rol){try{const a=await api('/api/gestion?rol='+rol,{s
 async function action(accion,rest={},notify=true){const d=await api('/api/action',{method:'POST',body:{accion,...rest}});const r=d.resultado;if(notify)toast(r.mensaje||'Operación realizada.');if(r.cotizacion?.id_cotizacion)app.cotizacionId=r.cotizacion.id_cotizacion; if(r.id_cotizacion)app.cotizacionId=r.id_cotizacion;await cargar({silencioso:true});return r;}
 async function sendChat(){const textarea=$('#chatMessage');const msg=textarea?.value.trim();if(!msg||app.busy)return;app.busy=true;const history=$('.chat-messages');if(history)history.insertAdjacentHTML('beforeend',`<div class="chat-row client"><div class="bubble">${esc(msg)}</div></div>`);textarea.value='';try{
   const d=await api('/api/chat',{method:'POST',body:{mensaje:msg,id_cliente:app.clienteId,id_conversacion:app.conversacionId,id_cotizacion:app.cotizacionId}});
-  app.mensajes=d.mensajes;app.conversacionId=d.id_conversacion;if(d.cotizacion?.id_cotizacion)app.cotizacionId=d.cotizacion.id_cotizacion;await cargar({silencioso:true});
+  app.mensajes=d.mensajes;app.ultimoMotor=d.motor;app.conversacionId=d.id_conversacion;if(d.cotizacion?.id_cotizacion)app.cotizacionId=d.cotizacion.id_cotizacion;await cargar({silencioso:true});
  }catch(err){toast(err.message,true);app.mensajes.push({rol:'cliente',texto:msg,fecha:new Date().toISOString()});render();}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}
 }
 async function run(fn){if(app.busy)return;app.busy=true;try{await fn();}catch(err){toast(err.message,true);}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}}

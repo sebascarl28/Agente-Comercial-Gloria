@@ -22,7 +22,7 @@ export default async function handler(req,res){
     const qid=req.body?.id_cotizacion||sesion.id_cotizacion;
     let q=qid?await detalleCotizacion(qid).catch(()=>null):null;
     if(q&&q.id_cliente!==id_cliente)falla('La cotización no corresponde al cliente activo.',403);
-    const interpretacion=await interpretar(texto,{cliente:contexto.cliente.razon_social,credito:contexto.cliente.linea_credito,cotizacion:q?{producto:q.producto_nombre,cantidad:q.cantidad,descuento:q.descuento_pct,estado:q.estado}:null});
+    const interpretacion=await interpretar(texto,{cliente:contexto.cliente.razon_social,credito:contexto.cliente.linea_credito,cotizacion:q?{producto:q.producto_nombre,cantidad:q.cantidad,descuento:q.descuento_pct,estado:q.estado}:null,historial:Array.isArray(sesion.mensajes)?sesion.mensajes:[]});
     let mensaje='',resultado=null,observacion='';
     try{
       switch(interpretacion.accion){
