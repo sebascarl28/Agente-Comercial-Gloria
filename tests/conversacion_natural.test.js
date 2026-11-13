@@ -16,7 +16,7 @@ test('Conversación conserva fresca y entera y solicita cajas para cada una',()=
   avanzarSeleccion('quiero 2 productos',estado);
   const tipo=avanzarSeleccion('quiero pedir leche freca y entera me entiendes?',estado);
   assert.match(tipo.mensaje,/fresca.*entera/i);
-  assert.match(tipo.mensaje,/cu[aá]ntas cajas.*fresca/i);
+  assert.match(tipo.mensaje,/cu[aá]ntas cajas.*cada una/i);
   assert.match(avanzarSeleccion('30',estado).mensaje,/cu[aá]ntas cajas.*entera/i);
   const final=avanzarSeleccion('10 cajas',estado);
   assert.deepEqual(pares(final.operaciones),[{id:'PRD-003',cantidad:30},{id:'PRD-001',cantidad:10}]);
@@ -46,8 +46,36 @@ test('Si pidió dos productos y menciona solo uno, pregunta por el otro',()=>{
  const estado={};
  avanzarSeleccion('quiero 2 productos',estado);
  assert.match(avanzarSeleccion('leche freca',estado).mensaje,/otra leche/i);
- assert.match(avanzarSeleccion('entera',estado).mensaje,/cu[aá]ntas cajas.*fresca/i);
+ assert.match(avanzarSeleccion('entera',estado).mensaje,/cu[aá]ntas cajas.*cada una/i);
 });
 test('Una comparación de productos no comienza una cotización',()=>{
  assert.equal(avanzarSeleccion('quiero comparar precio de fresca y entera',{}),null);
+});
+
+
+test('El caso de la captura asigna 100 cajas a cada una de las dos leches',()=>{
+ const estado={};
+ avanzarSeleccion('quiero 2 productos',estado);
+ avanzarSeleccion('la entera y fresca',estado);
+ const r=avanzarSeleccion('necesito 100 cajas de cada una',estado);
+ assert.deepEqual(pares(r.operaciones),[{id:'PRD-001',cantidad:100},{id:'PRD-003',cantidad:100}]);
+});
+test('Cantidades distintas pueden darse juntas después de elegir las leches',()=>{
+ const estado={};
+ avanzarSeleccion('quiero 2 productos',estado);
+ avanzarSeleccion('entera y fresca',estado);
+ const r=avanzarSeleccion('100 de entera y 50 de fresca',estado);
+ assert.deepEqual(pares(r.operaciones),[{id:'PRD-001',cantidad:100},{id:'PRD-003',cantidad:50}]);
+});
+test('Una cantidad sin cada una solo corresponde a la primera leche pendiente',()=>{
+ const estado={};avanzarSeleccion('entera y fresca',estado);
+ const r=avanzarSeleccion('100 cajas',estado);
+ assert.equal(r.operaciones,undefined);assert.match(r.mensaje,/fresca/i);
+ assert.deepEqual(pares(estado.seleccion_productos.items),[{id:'PRD-001',cantidad:100},{id:'PRD-003',cantidad:null}]);
+});
+test('No aplica una cantidad común cuando todavía faltan tipos por seleccionar',()=>{
+ const estado={};avanzarSeleccion('quiero 2 productos',estado);
+ avanzarSeleccion('fresca',estado);
+ const r=avanzarSeleccion('100 cajas de cada una',estado);
+ assert.equal(r.operaciones,undefined);assert.match(r.mensaje,/otra leche/i);
 });
