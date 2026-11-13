@@ -14,7 +14,7 @@ function nuevaSesionId(){
   return id;
 }
 const sesionActual=sessionStorage.getItem(DEMO_SESION_KEY)||nuevaSesionId();
-const app={sesionId:sesionActual,view:'chat' ,clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},pins:{finanzas:sessionStorage.getItem('finanzas_pin')||'',jefatura:sessionStorage.getItem('jefatura_pin')||''},demoPin:sessionStorage.getItem('demo_pin')||'',ultimoMotor:null,diagnosticoGroq:null,busy:false};
+const app={sesionId:sesionActual,view:'chat' ,clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},ultimoMotor:null,diagnosticoGroq:null,busy:false};
 const esc=x=>String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const money=x=>new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'}).format(Number(x||0));
 const day=x=>!x?'—':new Date(String(x).slice(0,10)+'T12:00:00Z').toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'});
@@ -35,10 +35,8 @@ function mostrarResumenFinal(q){
 const dato=(str)=>esc(str);
 let toastTimer;
 function toast(mensaje,esError=false){const t=$('#toast');t.textContent=mensaje;t.className='toast'+(esError?' error':'');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true},6000);}
-async function api(url,{method='GET',body,staff}={}){
+async function api(url,{method='GET',body}={}){
   const headers={'Content-Type':'application/json','X-Demo-Session':app.sesionId,'X-Demo-Scenario':ES_CASO_PC3?'pc3':'normal'};
-  if(app.demoPin)headers['X-Demo-Pin']=app.demoPin;
-  if(staff)headers['X-Staff-Pin']=app.pins[staff]||'';
   const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});
   let data;try{data=await r.json()}catch{throw new Error(`Error HTTP ${r.status} (revisa Vercel).`)}
   if(!r.ok||!data.ok)throw new Error(data.error||`Error HTTP ${r.status}`);
@@ -57,13 +55,11 @@ async function cargar({silencioso=false}={}){
     if(!d.cliente && d.clientes.length)app.clienteId=d.clientes[0].id_cliente;
     render();
   }catch(err){
-    if(err.message.includes('clave de acceso')){
-      $('#workspace').innerHTML=head('🔐','Acceso a la demostración','Introduce la clave establecida en Vercel.')+`<div class="card panel"><form id="demoPinForm"><label class="field">Clave de acceso<input name="pin" type="password" required autofocus autocomplete="off"/></label><br/><button class="btn" type="submit">Ingresar</button></form></div>`;
-    }else if(silencioso)toast(err.message,true);
+    if(silencioso)toast(err.message,true);
     else $('#workspace').innerHTML=head('⚠️','Configuración pendiente','Conecta Supabase y ejecuta el SQL del proyecto nuevo.')+`<div class="notice warn"><strong>${esc(err.message)}</strong><p>Revisa el archivo <code>README.md</code>, configura <code>DATABASE_URL</code> en Vercel y ejecuta <code>01_esquema.sql</code> y <code>02_datos_demo.sql</code> en Supabase.</p></div>`;
   }
 }
-function elegirVista(view){app.view=view;render();if(['finanzas','jefatura'].includes(view)&&app.pins[view])cargarStaff(view);}
+function elegirVista(view){app.view=view;render();if(['finanzas','jefatura'].includes(view))cargarStaff(view);}
 function cambiarCliente(id){app.clienteId=id;app.cotizacionId=null;app.conversacionId=null;app.mensajes=[];app.view='chat';cargar();}
 function menu(){
   $$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===app.view));
@@ -192,11 +188,11 @@ function stockView(){const l=app.datos.lotes||[];return `${head('◫','Stock y l
   <div class="table-wrap"><table class="data-table"><thead><tr><th>Lote</th><th>Producto</th><th>Almacén</th><th>Cajas físicas</th><th>Calidad</th><th>Vencimiento</th></tr></thead><tbody>${l.map(x=>`<tr><td>${esc(x.id_lote)}</td><td>${esc(x.producto)}</td><td>${esc(x.almacen)}</td><td>${x.cajas}</td><td>${badge(x.calidad,x.calidad==='LIBERADO'?'success':'warn')}</td><td>${day(x.fecha_vencimiento)}</td></tr>`).join('')}</tbody></table></div><div class="notice" style="margin-top:14px">Ejemplo central: UHT tiene 250 cajas liberadas y otras 40 en inspección que <strong>NO</strong> se cuentan en la disponibilidad comercial. Las reservas de pedidos confirmados también descuentan stock.</div>`;}
 function produccionView(){const l=app.datos.planes||[];return `${head('▥','Plan de producción (PP-PI)','El agente consulta esta tabla al detectar un faltante de stock.')}
   <div class="table-wrap"><table class="data-table"><thead><tr><th>Referencia PP-PI</th><th>Producto</th><th>Cajas</th><th>Producción</th><th>Disponible estimado</th><th>Estado</th></tr></thead><tbody>${l.map(x=>`<tr><td>${esc(x.referencia_pp_pi)}</td><td>${esc(x.producto)}</td><td>${x.cajas}</td><td>${day(x.fecha_produccion)}</td><td>${day(x.fecha_disponibilidad)}</td><td>${badge(x.estado,'warn')}</td></tr>`).join('')}</tbody></table></div><div class="notice warn" style="margin-top:14px">Una fecha de producción NO significa que el producto ya está liberado ni que se puede prometer una entrega. El agente ofrece alternativas tentativas y revalida al confirmar.</div>`;}
-function staffView(rol){const fin=rol==='finanzas',pin=app.pins[rol],arr=app.staff[rol];return `${head(fin?'▤':'♙',fin?'Área de Finanzas':'Jefatura Comercial',fin?'Evaluación humana de líneas de crédito.':'Descuentos especiales mayores al 5 % y hasta 12 %, sujetos a margen mínimo.')}
+function staffView(rol){const fin=rol==='finanzas',arr=app.staff[rol];return `${head(fin?'▤':'♙',fin?'Área de Finanzas':'Jefatura Comercial',fin?'Evaluación humana de líneas de crédito.':'Descuentos especiales mayores al 5 % y hasta 12 %, sujetos a margen mínimo.')}
   <div class="notice">${fin?'Finanzas puede aprobar una línea, ofrecer un monto menor o rechazarla. El cliente debe aceptar antes de que se active el crédito.':'Jefatura puede aprobar el porcentaje, ofrecer uno menor o rechazarlo; el descuento nunca se aplica sin aceptación del cliente.'}</div>
-  <div class="card panel" style="margin-top:13px;max-width:550px"><h2>Acceso del área</h2><p>Este panel usa un PIN propio de la demostración. No es autenticación empresarial.</p><form class="form-grid" id="staffPinForm" data-rol="${rol}"><label class="field">PIN de ${fin?'Finanzas':'Jefatura'}<input type="password" name="pin" required value="${esc(pin)}" autocomplete="off" /></label><div class="field" style="justify-content:end"><button class="btn" type="submit">Ver solicitudes</button></div></form></div>
+  <div class="toolbar" style="margin-top:13px">${button('Actualizar solicitudes',`data-actualizar-staff="${rol}"`,'secondary')}</div>
   <h2 class="section-title">Solicitudes recibidas</h2>
-  ${!pin?'<div class="card empty">Introduce el PIN para revisar solicitudes y aprobarlas.</div>':!arr.length?'<div class="card empty">No hay solicitudes cargadas o pendientes. Pulsa «Ver solicitudes» para actualizar.</div>':arr.map(s=>renderSolicitud(s,rol)).join('')}`;}
+  ${!arr.length?'<div class="card empty">No hay solicitudes cargadas o pendientes. Pulsa «Actualizar solicitudes» para revisar.</div>':arr.map(s=>renderSolicitud(s,rol)).join('')}`;}
 function renderSolicitud(s,rol){const fin=rol==='finanzas';const pending=fin?s.estado==='PENDIENTE_FINANZAS':s.estado==='PENDIENTE_JEFATURA';return `<article class="card staff-card" data-staff-card="${esc(s.id_solicitud)}"><div class="staff-meta"><strong>${esc(s.razon_social)}</strong>${badge(s.estado,pending?'warn':s.estado==='OFERTADO'||s.estado==='ACEPTADA_CLIENTE'?'success':'neutral')}</div>
   <p>${fin?`Solicitó crédito: <strong>${money(s.monto_solicitado)}</strong> · ${s.plazo_solicitado} días. Línea actual: ${money(s.linea_credito)}.`:`Descuento solicitado: <strong>${s.solicitado_pct}%</strong> · ${esc(s.producto_nombre)} · ${s.cantidad} cajas. Margen mínimo: ${s.margen_minimo}%.`}</p>
   ${pending?`<div class="staff-actions">${fin?`<label class="field">Monto a ofrecer<input data-value="monto" type="number" step="0.01" min="1" value="${s.monto_solicitado}"/></label><label class="field">Plazo días<input data-value="plazo" type="number" min="1" max="120" value="${s.plazo_solicitado}"/></label>`:`<label class="field">% a ofrecer (máx. 12)<input data-value="pct" type="number" min="0" max="12" step="0.5" value="${s.solicitado_pct}"/></label>`}<label class="field comment">Observación<input data-value="comentario" maxlength="500" placeholder="Motivo / evidencia"/></label>${button('Aprobar',`data-staff-decision="APROBAR" data-id="${esc(s.id_solicitud)}" data-rol="${rol}"`,'primary')}${button('Ofrecer otro monto / %',`data-staff-decision="CONTRAOFERTAR" data-id="${esc(s.id_solicitud)}" data-rol="${rol}"`,'secondary')}${button('Rechazar',`data-staff-decision="RECHAZAR" data-id="${esc(s.id_solicitud)}" data-rol="${rol}"`,'danger')}</div>`:`<p><strong>Decisión:</strong> ${esc(s.estado)}${s.monto_ofrecido?' · '+money(s.monto_ofrecido):''}${s.ofrecido_pct!=null?' · '+s.ofrecido_pct+'%':''}${s.comentario?' · '+esc(s.comentario):''}</p>`}</article>`;}
@@ -213,7 +209,7 @@ function formEntrega(){const q=quote();if(!q)return toast('Primero prepara una c
   <form id="modalCustomDelivery" class="form-grid" style="margin-top:14px"><label class="field">Primera entrega (cajas)<input type="number" name="cantidad1" min="1" max="${q.cantidad}" value="${primero}" required /></label><label class="field">Fecha primera entrega<input type="date" name="fecha1" value="${f1}" min="${hoy}" required /></label><label class="field">Segunda entrega (cajas)<input type="number" name="cantidad2" min="0" max="${q.cantidad}" value="${segundo}" required /></label><label class="field">Fecha segunda entrega<input type="date" name="fecha2" value="${dp||f1}" min="${hoy}" required /></label><button type="submit" class="btn">Validar fechas y proponer</button></form><p class="footnote">Las fechas se proponen, no se prometen automáticamente. La liberación QM y la logística son condiciones posteriores.</p>`);}
 function formCredito(){const previo=Number(app.datos?.cliente?.cliente?.linea_credito||0);const sugerido=previo>0?previo+5000:3000;modal('Solicitar línea de crédito a Finanzas',`<p>Cliente seleccionado: <strong>${esc(nombreCliente())}</strong>. Línea actual: <strong>${money(previo)}</strong>; el importe solicitado representa la nueva línea total, no un adicional.</p><form id="modalCredit" class="form-grid"><label class="field">Línea total solicitada (S/)<input name="monto" type="number" min="1" step="100" value="${sugerido}" required /></label><label class="field">Plazo (días)<select name="plazo"><option value="15">15 días</option><option value="30" selected>30 días</option><option value="45">45 días</option></select></label><button type="submit" class="btn">Enviar a Finanzas</button></form><p class="footnote">Finanzas puede aprobar, ofrecer un monto menor o rechazar; después responde el cliente.</p>`);}
 function formCliente(){modal('Registrar cliente nuevo',`<p>Solo mayoristas o distribuidores. Ejemplo con datos ficticios.</p><form id="modalClient" class="form-grid"><label class="field wide">Razón social<input name="razon_social" required maxlength="120" placeholder="Distribuidora Ejemplo S.A.C."/></label><label class="field">RUC de prueba<input name="ruc" required pattern="[0-9]{11}" maxlength="11" placeholder="20600000004"/></label><label class="field">Segmento<select name="segmento"><option value="MAYORISTA">Mayorista</option><option value="DISTRIBUIDOR">Distribuidor</option></select></label><label class="field">Contacto<input name="contacto" required placeholder="Persona encargada"/></label><label class="field">Celular<input name="celular" required placeholder="900000404"/></label><label class="field wide">Correo<input name="correo" type="email" required placeholder="contacto@ejemplo.invalid"/></label><label class="field wide">Dirección<input name="direccion" required placeholder="Av. Ejemplo 123"/></label><label class="field">Distrito<input name="distrito" required placeholder="Ate"/></label><button class="btn" type="submit">Guardar cliente</button></form>`);}
-async function cargarStaff(rol){try{const a=await api('/api/gestion?rol='+rol,{staff:rol});app.staff[rol]=a.solicitudes;render();}catch(err){toast(err.message,true);app.staff[rol]=[];render();}}
+async function cargarStaff(rol){try{const a=await api('/api/gestion?rol='+rol);app.staff[rol]=a.solicitudes;render();}catch(err){toast(err.message,true);app.staff[rol]=[];render();}}
 async function action(accion,rest={},notify=true){const d=await api('/api/action',{method:'POST',body:{accion,...rest}});const r=d.resultado;if(notify)toast(r.mensaje||'Operación realizada.');if(r.cotizacion?.id_cotizacion)app.cotizacionId=r.cotizacion.id_cotizacion; if(r.id_cotizacion)app.cotizacionId=r.id_cotizacion;await cargar({silencioso:true});return r;}
 async function sendChat(){const textarea=$('#chatMessage');const msg=textarea?.value.trim();if(!msg||app.busy)return;
   if(!ES_CASO_PC3 && solicitaCasoPC3(msg)){
@@ -234,8 +230,6 @@ document.addEventListener('change',ev=>{if(ev.target.id==='selectCliente')cambia
 document.addEventListener('submit',e=>{const form=e.target;e.preventDefault();
   if(form.id==='chatForm'){sendChat();return;}
   run(async()=>{
-    if(form.id==='demoPinForm'){app.demoPin=form.pin.value;sessionStorage.setItem('demo_pin',app.demoPin);await cargar();return;}
-    if(form.id==='staffPinForm'){const rol=form.dataset.rol;app.pins[rol]=form.pin.value;sessionStorage.setItem(`${rol}_pin`,form.pin.value);await cargarStaff(rol);return;}
     if(form.id==='modalQuoteForm'){const x=enviarDatos(form);const actual=quote();const anadir=form.dataset.anadir==='1'&&actual&&actual.estado!=='CONFIRMADA';const r=anadir?await action('agregar_producto',{id_cotizacion:actual.id_cotizacion,id_producto:x.producto,cantidad:Number(x.cantidad)}):await action('crear_cotizacion',{id_cliente:app.clienteId,id_producto:x.producto,cantidad:Number(x.cantidad)});app.cotizacionId=r.id_cotizacion;app.view='chat';cerrarModal();await cargar();return;}
     if(form.id==='modalEditQuote'){const x=enviarDatos(form);await action('modificar_cotizacion',{id_cotizacion:app.cotizacionId,cambios:{id_producto:x.producto,cantidad:Number(x.cantidad)}});cerrarModal();return;}
     if(form.id==='modalDiscount'){await action('solicitar_descuento',{id_cotizacion:app.cotizacionId,porcentaje:Number(form.pct.value)});cerrarModal();return;}
@@ -256,6 +250,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('button');if(!el
   if(el.dataset.close!==undefined)return cerrarModal();
   if(el.dataset.top!==undefined)return elegirVista(el.dataset.top);
   if(el.dataset.view!==undefined)return elegirVista(el.dataset.view);
+  if(el.dataset.actualizarStaff!==undefined)return cargarStaff(el.dataset.actualizarStaff);
   if(el.dataset.chatSuggest!==undefined){const input=$('#chatMessage');if(input){input.value=el.dataset.chatSuggest;sendChat();}return;}
   if(el.dataset.cliente!==undefined)return cambiarCliente(el.dataset.cliente);
   if(el.dataset.productoCotizar!==undefined)return formQuote(el.dataset.productoCotizar);
@@ -268,7 +263,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('button');if(!el
   if(el.dataset.confirmar!==undefined)return run(()=>action('confirmar_pedido',{id_cotizacion:app.cotizacionId}));
   if(el.dataset.responderDesc!==undefined)return run(()=>action('responder_descuento',{id_solicitud:el.dataset.responderDesc,aceptar:el.dataset.acepta==='true'}));
   if(el.dataset.responderCredit!==undefined)return run(()=>action('responder_credito',{id_solicitud:el.dataset.responderCredit,aceptar:el.dataset.acepta==='true'}));
-  if(el.dataset.staffDecision!==undefined)return run(async()=>{const rol=el.dataset.rol,c=el.closest('[data-staff-card]');const val=key=>c.querySelector(`[data-value="${key}"]`)?.value;const body={rol,id_solicitud:el.dataset.id,decision:el.dataset.staffDecision,comentario:val('comentario')||''};if(rol==='finanzas'){body.monto=Number(val('monto'));body.plazo_dias=Number(val('plazo'));}else body.porcentaje=Number(val('pct'));const r=await api('/api/gestion',{method:'POST',staff:rol,body});toast(r.resultado.mensaje);await cargarStaff(rol);await cargar({silencioso:true});});
+  if(el.dataset.staffDecision!==undefined)return run(async()=>{const rol=el.dataset.rol,c=el.closest('[data-staff-card]');const val=key=>c.querySelector(`[data-value="${key}"]`)?.value;const body={rol,id_solicitud:el.dataset.id,decision:el.dataset.staffDecision,comentario:val('comentario')||''};if(rol==='finanzas'){body.monto=Number(val('monto'));body.plazo_dias=Number(val('plazo'));}else body.porcentaje=Number(val('pct'));const r=await api('/api/gestion',{method:'POST',body});toast(r.resultado.mensaje);await cargarStaff(rol);await cargar({silencioso:true});});
 });
 async function iniciarAplicacion(){
   await cargar();

@@ -1,12 +1,11 @@
 import { enSimulacion } from '../lib/db.js';
-import {respuesta,errorJson,revisarAcceso,revisarRol,metodo,falla} from '../lib/http.js';
+import {respuesta,errorJson,metodo,falla} from '../lib/http.js';
 import {listarAprobaciones,decidirCredito,decidirDescuento} from '../lib/service.js';
 async function atender(req,res){
   try{
-    metodo(req,['GET','POST']);revisarAcceso(req);
+    metodo(req,['GET','POST']);
     const rol=req.method==='GET'?req.query?.rol:req.body?.rol;
     if(!['finanzas','jefatura'].includes(rol))falla('Selecciona Finanzas o Jefatura.');
-    revisarRol(req,rol);
     if(req.method==='GET')return respuesta(res,200,{ok:true,solicitudes:await listarAprobaciones(rol)});
     const x=req.body||{};
     const resultado=rol==='finanzas'?

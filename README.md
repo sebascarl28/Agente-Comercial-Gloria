@@ -37,20 +37,17 @@ Repositorio: **`sebascarl28/Agente-Comercial-Gloria`**. El código vive en `publ
 3. En **Project Settings → Environment Variables**, configura las claves indicadas a continuación. Para el despliegue inicial puedes añadírselas antes del primer Deploy.
 4. Para la instalación inicial pulsa **Deploy**. Después, comprueba en **Deployments** que el commit unido a `main` termine en **Ready / Production**. La URL raíz `/` abre el chat.
 
-### Variables de entorno (secretas, SOLO Vercel)
+### Variables de entorno (credenciales de servicios, SOLO Vercel)
 
 | Variable | Contenido |
 |---|---|
 | `DATABASE_URL` | URI privado PostgreSQL de **tu nuevo proyecto Supabase**. |
 | `GROQ_API_KEY` | Tu clave de Groq para interpretar mensajes. |
 | `GROQ_MODEL` | `openai/gpt-oss-120b` (puedes sustituir por un modelo soportado en tu cuenta). |
-| `FINANZAS_PIN` | Una clave propia, privada, para el responsable que aprueba créditos. |
-| `JEFATURA_PIN` | **Otra** clave distinta para quien evalúa descuentos. |
-| `DEMO_ACCESS_PIN` (opcional) | Clave compartida que protege todas las llamadas de API en esta demo pública. |
 
-En ningún caso compartas `DATABASE_URL`, PIN o claves Groq en chat, capturas de pantalla o archivos GitHub.
+En ningún caso compartas `DATABASE_URL` ni claves Groq en chat, capturas de pantalla o archivos GitHub. Finanzas y Jefatura no requieren contraseña en esta demostración; sus decisiones siguen validadas por las reglas comerciales del backend.
 
-**Importante:** activar la protección de preview de Vercel puede exigir inicio de sesión; el usuario que evalúa la demo debe contar con acceso al dominio o con un enlace compartido. En una demo pública considera `DEMO_ACCESS_PIN` para evitar consumo de cuota de Groq y modificaciones por terceros.
+**Importante:** esta demo sin acceso por roles permite que cualquier visitante de la URL use Finanzas y Jefatura en su propia sesión de simulación y consuma cuota de Groq. No usar con datos reales. Si Vercel protege los previews, el evaluador debe usar el dominio público de producción.
 
 ## 4. Probar en el navegador
 
@@ -58,7 +55,7 @@ En ningún caso compartas `DATABASE_URL`, PIN o claves Groq en chat, capturas de
 2. Escribe **«Necesito 300 cajas de leche UHT»**. Debería indicar **250 libres y 50 previstas** tras producción. También puedes pulsar **Cotizar**.
 3. Ve a **Opciones de entrega**, elige dos entregas o propón fechas propias y acepta la propuesta.
 4. Solicita **8 %**. El agente crea una solicitud pendiente.
-5. Abre **Jefatura Comercial**, introduce `JEFATURA_PIN`, revisa el margen y autoriza por ejemplo **8 %**. Al regresar al chat, el cliente debe **Aceptar descuento**.
+5. Abre **Jefatura Comercial**, revisa el margen y autoriza por ejemplo **8 %** sin introducir PIN. Al regresar al chat, el cliente debe **Aceptar descuento**.
 6. Selecciona **Opciones de pago → Crédito aprobado** (La Alameda ya tiene S/ 30 000).
 7. Verifica que el resumen permite **Confirmar pedido**. El ERP revalida stock, asignaciones, crédito y aprobaciones antes de registrar.
 8. **Clientes → Registrar nuevo cliente**. Usa un RUC de prueba de 11 dígitos no existente, elige `MAYORISTA` o `DISTRIBUIDOR`, luego **Solicitar crédito**. En Finanzas aprueba, contraoferta o rechaza. La decisión queda pendiente de aceptación del cliente; una oferta aprobada no activa la línea por sí sola.
@@ -71,10 +68,10 @@ Más ideas en `PRUEBAS_PC3.md`.
 
 ```text
 Navegador: public/index.html + styles.css + app.js
-    ↓  API HTTPS de Vercel (con acceso opcional por PIN)
+    ↓  API HTTPS de Vercel (demo pública sin contraseñas de acceso)
 api/chat.js → lib/ai.js (Groq: interpreta/intenta conversar)
 api/action.js → lib/service.js (cotizaciones, clientes, pagos, entregas, confirmación)
-api/gestion.js → lib/service.js (decisiones humanas protegidas por PIN)
+api/gestion.js → lib/service.js (decisiones de Finanzas y Jefatura validadas por reglas)
 api/bootstrap.js → lectura del catálogo, stock y estado
     ↓
 lib/db.js → PostgreSQL de Supabase (DATABASE_URL, solo en servidor)
@@ -83,7 +80,7 @@ lib/db.js → PostgreSQL de Supabase (DATABASE_URL, solo en servidor)
 - El chat **no inventa** stock, precio, crédito, descuentos autorizados ni promesas de entrega: se calculan/consultan en el backend. Si Groq falla, se usa un analizador guiado limitado.
 - Una cotización admite hasta tres variedades de leche. El backend valida cantidades, descuentos y entregas por producto; cambiar una cantidad obliga a revisar la entrega y cualquier descuento autorizado.
 - No integra SAP real, pasarela de pago, correos ni servicios de transportes; **simula integraciones** ERP (QM/PP-PI/stock/crédito) de forma auditable.
-- Límite académico de seguridad: los PIN **no sustituyen autenticación real con roles**. No emplear para operaciones con clientes verdaderos ni para producción empresarial. No hospedar datos personales reales.
+- Límite académico de seguridad: el acceso a las áreas es libre en esta demo. No emplear para operaciones con clientes verdaderos ni para producción empresarial. No hospedar datos personales reales.
 - Se sugieren fechas mediante inventario y producción; el sistema no confirma automáticamente una fecha logística ni libera un lote que sigue en inspección.
 
 ## 6. Pruebas técnicas
