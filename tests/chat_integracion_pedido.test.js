@@ -43,5 +43,13 @@ test('El chat no crea las líneas equivocadas y permite consultar el precio sin 
   const c=await enviar('¿Cuánto cuesta una caja de leche fresca?');
   assert.match(c.respuesta,/Fresca:.*62\.00/);assert.equal(mock.creadas.length,1);
   assert.deepEqual(c.cotizacion.items.map(x=>x.cantidad),[50,30]);
+  // Reproduce la conversación reportada: no confundir variedades con cajas.
+  session.mensajes=[];session.id_cotizacion=null;mock.q=null;mock.creadas=[];
+  await enviar('buenas quiero pedir varios productos, que ofreces?');
+  const ambiguo=await enviar('quiero 3 lecehes evaporada y fresca');
+  assert.match(ambiguo.respuesta,/tipos de leche o cajas/);assert.equal(mock.creadas.length,0);
+  const correccion=await enviar('no, quiero 10 cajas de evaporada y 20 de fressca');
+  assert.match(correccion.respuesta,/10 cajas de leche evaporada.*20 cajas de leche fresca/);assert.equal(mock.creadas.length,0);
+  await enviar('Sí');assert.deepEqual(mock.creadas[0],[{id:'PRD-002',cantidad:10},{id:'PRD-003',cantidad:20}]);
  }finally{hook.deregister();delete globalThis.__testChat;if(savedKey!==undefined)process.env.GROQ_API_KEY=savedKey;}
 });

@@ -52,7 +52,7 @@ test('Con mi crédito aprobado selecciona pago solo en el contexto apropiado',()
 test('Cuándo está disponible informa fecha referencial sin crear entrega',async()=>{
  const q={items:[{cantidad:20,disponibilidad:{disponibles:90,planes:[]}},{cantidad:50,disponibilidad:{disponibles:300,planes:[]}}],entregas:[]};
  const estado={hoy:'2026-11-13'};assert.equal(preguntaFechaDisponible('¿para cuándo está disponible?'),true);
- await ejecutarEnEscenarioPC3(true,async()=>{const m=responderFechaDisponible(q,estado);assert.match(m,/16\/11\/2026/);assert.match(m,/sujeta a log[ií]stica/i);assert.deepEqual(q.entregas,[]);});
+ await ejecutarEnEscenarioPC3(true,async()=>{const m=responderFechaDisponible(q,estado);assert.match(m,/16\/11\/2026/);assert.match(m,/confirmarse con despacho/i);assert.deepEqual(q.entregas,[]);});
 });
 test('Preguntar por la fecha de un descuento no se confunde con disponibilidad',()=>{
  assert.equal(preguntaFechaDisponible('¿para cuándo está disponible el descuento?'),false);
