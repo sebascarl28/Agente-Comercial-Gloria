@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {pideNuevaCotizacion,preguntaLimiteDescuento} from '../lib/ciclo-cotizacion.js';
 import {esEscenarioPC3,PRIMERA_ENTREGA_PC3,SEGUNDA_ENTREGA_PC3} from '../lib/escenario.js';
 import {enSimulacion,consulta,uno} from '../lib/db.js';
-import {respuesta,errorJson,revisarAcceso,metodo,falla,obligatorio} from '../lib/http.js';
+import {respuesta,errorJson,metodo,falla,obligatorio} from '../lib/http.js';
 import {interpretar} from '../lib/ai.js';
 import {avanzarSeleccion} from '../lib/seleccion-productos.js';
 import {interpretarCambio} from '../lib/cambios-conversacion.js';
@@ -102,7 +102,7 @@ async function encontrarSesion(id,idCliente){
 }
 async function atender(req,res){
  try{
-  metodo(req,['POST']);revisarAcceso(req);
+  metodo(req,['POST']);
   const texto=obligatorio(req.body?.mensaje,'Mensaje',1200);
   const idCliente=req.body?.id_cliente;
   const contexto=await contextoCliente(idCliente);

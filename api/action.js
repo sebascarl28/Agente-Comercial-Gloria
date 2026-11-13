@@ -1,5 +1,5 @@
 import { enSimulacion } from '../lib/db.js';
-import { respuesta,errorJson,revisarAcceso,metodo,falla } from '../lib/http.js';
+import { respuesta,errorJson,metodo,falla } from '../lib/http.js';
 import {crearCotizacion,modificarCotizacion,solicitarDescuento,clienteRespondeDescuento,crearCliente,solicitarCredito,clienteRespondeCredito,proponerEntrega,aceptarEntrega,confirmarDireccion,definirPago,confirmarPedido,detalleCotizacion,cambiarLinea} from '../lib/service.js';
 const acciones={
   crear_cotizacion:x=>crearCotizacion(x.id_cliente,x.id_producto,x.cantidad),
@@ -20,7 +20,7 @@ const acciones={
   detalle_cotizacion:x=>detalleCotizacion(x.id_cotizacion)
 };
 async function atender(req,res){
-  try {metodo(req,['POST']);revisarAcceso(req);
+  try {metodo(req,['POST']);
     const action=req.body?.accion;
     if(!Object.hasOwn(acciones,action))falla('Acción no reconocida.');
     const resultado=await acciones[action](req.body||{});

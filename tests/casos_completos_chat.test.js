@@ -7,8 +7,8 @@ import {ejecutarEnEscenarioPC3} from '../lib/escenario.js';
 // El handler es real; Groq y la persistencia ERP/CRM están simulados. El cálculo
 // y las reglas comerciales usan los módulos reales del proyecto.
 test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{skip:!nodeModule.registerHooks},async()=>{
- const key=process.env.GROQ_API_KEY,pin=process.env.JEFATURA_PIN,demo=process.env.DEMO_ACCESS_PIN,DateReal=globalThis.Date;
- delete process.env.GROQ_API_KEY;delete process.env.DEMO_ACCESS_PIN;process.env.JEFATURA_PIN='PIN-PRUEBA';
+ const key=process.env.GROQ_API_KEY,DateReal=globalThis.Date;
+ delete process.env.GROQ_API_KEY;
  globalThis.Date=class extends DateReal {constructor(...args){super(...(args.length?args:['2026-11-13T18:00:00Z']));}static now(){return new DateReal('2026-11-13T18:00:00Z').getTime();}};
  const defs={
   'PRD-001':{nombre:'Leche UHT Gloria Entera 1 L',precio:60,costo:46,margen_minimo:15},
@@ -110,7 +110,7 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   assert.equal(entrega.cotizacion.entrega_aceptada,true);
   await paso('Quiero 8 % de descuento',/Jefatura/i);
   assert.equal(m.q.aprobaciones[0].estado,'PENDIENTE_JEFATURA');
-  await llamar(gestion,{rol:'jefatura',id_solicitud:'DESC-1',decision:'APROBAR',porcentaje:8},{'x-staff-pin':'PIN-PRUEBA'});
+  await llamar(gestion,{rol:'jefatura',id_solicitud:'DESC-1',decision:'APROBAR',porcentaje:8});
   const estado=await paso('¿Cómo va mi cotización?',/Jefatura.*8/i);
   assert.equal(estado.cotizacion.total,25629.6);assert.match(estado.respuesta,/25,629\.60/);
   await paso('Acepto',/descuento/i);
@@ -119,5 +119,5 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   const final=await paso('Confirmar pedido',/CONFIRMADA/);
   assert.equal(final.cotizacion.total,23579.23);assert.equal(m.asignaciones.length,1);assert.equal(m.asignaciones[0].cajas,20);
   assert.match(final.respuesta,/340 cajas/);assert.match(final.respuesta,/23,579\.23/);assert.match(final.respuesta,/condicional/i);
- }finally{hook.deregister();globalThis.Date=DateReal;delete globalThis.__casosChat;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;if(pin===undefined)delete process.env.JEFATURA_PIN;else process.env.JEFATURA_PIN=pin;if(demo===undefined)delete process.env.DEMO_ACCESS_PIN;else process.env.DEMO_ACCESS_PIN=demo;}
+ }finally{hook.deregister();globalThis.Date=DateReal;delete globalThis.__casosChat;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;}
 });

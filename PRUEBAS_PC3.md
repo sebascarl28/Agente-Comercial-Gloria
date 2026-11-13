@@ -41,10 +41,10 @@
 - Seleccionar pago con crédito debe fallar y solicitar decisión de Finanzas o cambio de modalidad.
 - Una aprobación de crédito no reemplaza la autorización de descuentos de Jefatura.
 
-## Caso 6 — Protección de datos / roles (demo)
+## Caso 6 — Acceso a áreas (demo pública)
 
-- Con `FINANZAS_PIN` no se pueden aprobar descuentos de Jefatura.
-- Con `JEFATURA_PIN` no se pueden aprobar créditos.
-- Los PIN y las credenciales de Groq/BD no deben aparecer en el código público ni en JSON de bootstrap.
+- Finanzas y Jefatura tienen pestañas y decisiones separadas; no solicitan PIN en esta simulación pública.
+- El backend mantiene la validación de límites de descuento, crédito y aceptación del cliente.
+- Las credenciales de Groq y base de datos no deben aparecer en el código público ni en JSON de bootstrap.
 
 **Precaución:** las pruebas de confirmación consumen stock en la base de demostración (se crean reservas). Prueba primero la excepción UHT o utiliza evaporada en el caso normal para no afectar las 250 cajas disponibles en UHT.

@@ -1,11 +1,11 @@
 import {esEscenarioPC3} from '../lib/escenario.js';
 import {consulta} from '../lib/db.js';
 import { enSimulacion } from '../lib/db.js';
-import { respuesta,errorJson,revisarAcceso,metodo } from '../lib/http.js';
+import { respuesta,errorJson,metodo } from '../lib/http.js';
 import { clientesYCatalogo,contextoCliente,detalleCotizacion,disponibilidad } from '../lib/service.js';
 async function atender(req,res){
   try{
-    metodo(req,['GET']);revisarAcceso(req);
+    metodo(req,['GET']);
     const base=await clientesYCatalogo();
     const cliente_id=req.query?.cliente_id||base.clientes[0]?.id_cliente;
     const cliente=cliente_id?await contextoCliente(cliente_id):null;
