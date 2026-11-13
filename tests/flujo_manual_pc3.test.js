@@ -1,3 +1,4 @@
+import {respuestaTotalCotizacion} from '../lib/precios-conversacion.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -25,8 +26,8 @@ test('resumen final usa condiciones reales de la cotización confirmada',()=>{
   assert.ok(match,'La función de resumen final debe existir');
   const fecha=x=>x;
   const nombres={'PRD-001':'leche UHT','PRD-002':'leche evaporada'};
-  const obtener=new Function('nombres','fecha',match[0]+';return resumenPedidoConversado;');
-  const resumen=obtener(nombres,fecha);
+  const obtener=new Function('respuestaTotalCotizacion','nombres','fecha',match[0]+';return resumenPedidoConversado;');
+  const resumen=obtener(respuestaTotalCotizacion,nombres,fecha);
   const q={estado:'CONFIRMADA',items:[{cantidad:100,producto_nombre:'Leche UHT Gloria Entera 1 L',disponibilidad:{disponibles:150}}],
     entregas:[{cajas:100,id_producto:'PRD-001',origen:'STOCK',fecha:'2026-11-16'}],
     forma_pago:'CONTADO',descuento_pct:0,calculo:{total:7080}};
@@ -38,7 +39,7 @@ test('resumen final usa condiciones reales de la cotización confirmada',()=>{
 test('la cotización de 360 cajas distingue reservas de producción condicionada',()=>{
   const f=chat.match(/function resumenPedidoConversado\(q\)\{[\s\S]*?\n\}/);
   assert.ok(f);
-  const resumen=new Function('nombres','fecha',f[0]+';return resumenPedidoConversado;')(
+  const resumen=new Function('respuestaTotalCotizacion','nombres','fecha',f[0]+';return resumenPedidoConversado;')(respuestaTotalCotizacion,
     {'PRD-001':'leche UHT','PRD-002':'leche evaporada','PRD-003':'leche fresca'},x=>x
   );
   const q={estado:'CONFIRMADA',items:[{cantidad:180,producto_nombre:'UHT'},{cantidad:60,producto_nombre:'Evaporada'},{cantidad:120,producto_nombre:'Fresca'}],

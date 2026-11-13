@@ -78,9 +78,27 @@ function render(){menu();if(!app.datos)return;
 function barCliente(){const c=app.datos.cliente?.cliente;return `<div class="client-bar card"><strong>Cliente:</strong><select id="selectCliente" aria-label="Seleccionar cliente">${app.datos.clientes.map(x=>`<option value="${esc(x.id_cliente)}" ${x.id_cliente===app.clienteId?'selected':''}>${esc(x.razon_social)}</option>`).join('')}</select>${c?`<div class="credit">${Number(c.linea_credito)>0?badge('✓ Crédito aprobado','success'):badge('Sin crédito aprobado','warn')}<small>Línea: ${money(c.linea_credito)} &nbsp; | &nbsp; Plazo: ${c.plazo_credito_dias||0} días</small></div>`:''}</div>`;}
 function welcome(){return [{rol:'agente',texto:`¡Hola! Soy el Agente Comercial Gloria 👋\nYa tengo registrada a ${nombreCliente()}.\n¿En qué puedo ayudarte hoy?`,fecha:new Date().toISOString()}];}
 function sugerenciasDelMomento(q){
+  if(q?.estado==='CONFIRMADA')return [['Nueva cotización','Quiero otra cotización'],['Ver pedido','¿Cómo va mi pedido?']];
   const ultimo=[...app.mensajes].reverse().find(m=>m.rol==='agente'&&m.estado_chat);
   const estado=ultimo?.estado_chat||{};
   const espera=estado.esperando;
+  if(espera==='ACLARAR_CAMBIO_PRODUCTOS')return [['Reemplazar productos','Reemplazar productos'],['Conservar los demás','Conservar los demas'],['Cancelar','Cancelar']];
+  if(espera==='ACLARAR_FECHA_CANTIDAD')return [['Solo cambiar fecha','Solo fecha'],['Modificar cantidades','Modificar cantidades']];
+  if(espera==='PEDIR_FECHA_EXACTA' && estado.fechas_sugeridas?.length){
+    return estado.fechas_sugeridas.map(f=>[day(f),f]);
+  }
+  if(espera==='ELEGIR_FECHA')return [['La próxima semana','La próxima semana'],['Esta semana','Esta semana'],['Lo antes posible','Lo antes posible']];
+  if(espera==='ACLARAR_SELECCION_PRODUCTOS')return [['Reemplazar selección','Reemplazar selección'],['Añadir leche','Añadir leche'],['Cancelar','Cancelar']];
+  if(espera==='CONFIRMAR_PRODUCTOS_INTERPRETADOS')return [['Sí, es correcto','Sí'],['Corregir','Corregir']];
+  if(espera==='ELEGIR_ACCION_MULTIPRODUCTO')return [['Reemplazar cantidades','Quiero modificar'],['Sumar esas cajas','Quiero sumar'],['Cancelar cambio','Cancelar']];
+  if(espera==='SELECCIONAR_LECHES')return [['Leche UHT entera','Leche entera'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
+  if(espera==='CANTIDAD_SELECCION'){
+    const faltan=(estado.seleccion_productos?.items||[]).filter(x=>x.cantidad===null).length;
+    return faltan>1?[['50 de cada una','50 cajas de cada una'],['100 de cada una','100 cajas de cada una']]:[['10 cajas','10 cajas'],['30 cajas','30 cajas'],['50 cajas','50 cajas']];
+  }
+  if(espera==='MODIFICAR_LINEAS')return [['Ver cotización','¿Cómo va mi cotización?'],['Añadir otra leche','¿Puedo añadir otro producto?']];
+  if(espera==='PEDIR_PRODUCTO')return [['Leche UHT entera','Leche entera'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
+  if(espera==='PEDIR_CANTIDAD')return [['10 cajas','10 cajas'],['30 cajas','30 cajas'],['50 cajas','50 cajas'],['Consultar stock','¿Cuánto stock hay?']];
   if(espera==='CONFIRMAR_TIPO_LECHE')return [['Sí, es ese','Sí'],['No, otro producto','No']];
   if(espera==='AGREGAR_PRODUCTO')return [['Leche UHT','Leche UHT'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
   if(espera==='ELEGIR_CAMBIO_LINEA')return [['Sumar cajas','Sumar esas cajas'],['Cambiar cantidad','Cambiar a esa cantidad']];
@@ -95,7 +113,7 @@ function sugerenciasDelMomento(q){
   if(espera==='ACLARAR_FECHA')return [['Vencimiento','Fecha de vencimiento'],['Entrega','Fecha de entrega']];
   if(espera==='REDUCIR_CANTIDAD'&&q)return [['Mantener cantidad','Quiero mantener el pedido completo'],['Entrega parcial','Prefiero entrega parcial'],['Revisar Planeamiento','Consultar Planeamiento']];
   if(!q)return [['Ver tipos de leche','¿Qué leches tienes?'],['Consultar stock','¿Qué stock tienes de leche UHT?'],['Cotizar leche fresca','Quiero cotizar leche fresca']];
-  if(!q.entregas?.length)return [['Añadir otra leche','¿Puedo añadir otro producto?'],['¿Qué stock hay?','¿Qué stock tienes del producto?'],['Negociar entrega','Quiero acordar una fecha de entrega']];
+  if(!q.entregas?.length)return [['Añadir otra leche','¿Puedo añadir otro producto?'],['Modificar cantidades','Quiero modificar'],['¿Qué stock hay?','¿Qué stock tienes del producto?'],['Negociar entrega','Quiero acordar una fecha de entrega']];
   if(!q.entrega_aceptada)return [['Aceptar propuesta','Acepto la entrega'],['Cambiar fechas','Quiero cambiar las fechas']];
   if(q.forma_pago==='SIN_DEFINIR')return [['Con mi crédito','Quiero pagar con el crédito aprobado'],['Pago contado','Quiero pagar al contado']];
   return [['Añadir otra leche','¿Puedo añadir otro producto?'],['Consultar cotización','¿Cómo va mi cotización?'],['Solicitar descuento','Quiero solicitar descuento']];
@@ -139,6 +157,7 @@ function summaryView(q){
   const pendientes=[];if(!q.direccion_confirmada)pendientes.push('confirmar dirección');if(q.forma_pago==='SIN_DEFINIR')pendientes.push('definir pago');if(!q.entrega_aceptada)pendientes.push('aceptar entregas');if(ap)pendientes.push('resolver descuento con Jefatura y cliente');
   const listo=!pendientes.length&&q.estado!=='CONFIRMADA';
   return `<section class="card summary"><div class="summary-header"><h2>▤ Resumen final ${q.estado==='CONFIRMADA'?'del pedido':'de la cotización'} · V${q.version}</h2>${badge(q.estado==='CONFIRMADA'?'CONFIRMADA':pendientes.length?'EN NEGOCIACIÓN':'LISTA PARA CONFIRMAR',q.estado==='CONFIRMADA'||!pendientes.length?'success':'warn')}</div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th>Cajas</th><th>Unidades</th><th>Precio/caja sin IGV</th><th>Importe con descuento, sin IGV</th></tr></thead><tbody>${(q.items||[]).map(x=>`<tr><td>${esc(x.producto_nombre)}</td><td>${x.cantidad}</td><td>${x.unidades_caja?Number(x.cantidad)*Number(x.unidades_caja):'—'}</td><td>${money(x.precio_unitario)}</td><td>${money(x.subtotal)}</td></tr>`).join('')}</tbody></table></div>
   <div class="summary-body">
     <div class="kv"><span class="key">Cliente</span><span class="value">${esc(q.razon_social)}</span></div>
     <div class="kv"><span class="key">Producto</span><span class="value">${esc((q.items||[]).map(x=>`${x.cantidad} cajas · ${x.producto_nombre}`).join(' / ')||q.producto_nombre)}</span></div>
@@ -149,6 +168,8 @@ function summaryView(q){
     <div class="kv"><span class="key">Descuento aplicado</span><span class="value">${q.descuento_pct}% ${ap?'(solicitud pendiente)':''}</span></div>
     <div class="kv"><span class="key">Pago</span><span class="value">${esc(q.forma_pago.replaceAll('_',' '))}</span></div>
     <div class="kv"><span class="key">Entrega</span><span class="value">${esc(deliveries)}</span></div>
+    <div class="kv"><span class="key">Subtotal sin IGV</span><span class="value">${money(q.calculo?.subtotal??q.subtotal)}</span></div>
+    <div class="kv"><span class="key">IGV (18%)</span><span class="value">${money(q.calculo?.igv??q.igv)}</span></div>
     <div class="kv"><span class="key">Total con IGV</span><span class="value">${money(q.total)}</span></div>
   </div>
   ${!q.direccion_confirmada?`<div class="notice" style="margin:0 20px 14px"><strong>Confirma la dirección de entrega:</strong><div class="chat-actions"><select id="direccionSeleccionada" aria-label="Dirección de entrega">${(app.datos.cliente?.direcciones||[]).map(dir=>`<option value="${esc(dir.id_direccion)}" ${dir.id_direccion===q.id_direccion?'selected':''}>${esc(dir.direccion+', '+dir.distrito)}</option>`).join('')}</select>${button('Confirmar dirección','data-confirmar-direccion','primary')}</div></div>`:''}
@@ -204,7 +225,7 @@ async function sendChat(){const textarea=$('#chatMessage');const msg=textarea?.v
   }
   app.busy=true;const history=$('.chat-messages');if(history)history.insertAdjacentHTML('beforeend',`<div class="chat-row client"><div class="bubble">${esc(msg)}</div></div>`);textarea.value='';try{
   const d=await api('/api/chat',{method:'POST',body:{mensaje:msg,id_cliente:app.clienteId,id_conversacion:app.conversacionId,id_cotizacion:app.cotizacionId}});
-  app.mensajes=d.mensajes;app.ultimoMotor=d.motor;app.diagnosticoGroq=d.diagnostico_groq||null;app.conversacionId=d.id_conversacion;if(d.cotizacion?.id_cotizacion)app.cotizacionId=d.cotizacion.id_cotizacion;await cargar({silencioso:true});
+  app.mensajes=d.mensajes;app.ultimoMotor=d.motor;app.diagnosticoGroq=d.diagnostico_groq||null;app.conversacionId=d.id_conversacion;app.cotizacionId=d.cotizacion?.id_cotizacion||null;await cargar({silencioso:true});
  }catch(err){toast(err.message,true);app.mensajes.push({rol:'cliente',texto:msg,fecha:new Date().toISOString()});render();}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}
 }
 async function run(fn){if(app.busy)return;app.busy=true;try{await fn();}catch(err){toast(err.message,true);}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}}
