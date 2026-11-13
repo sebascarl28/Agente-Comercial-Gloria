@@ -1,3 +1,4 @@
+import { enSimulacion } from '../lib/db.js';
 import {respuesta,errorJson,revisarAcceso,metodo,falla,obligatorio} from '../lib/http.js';
 import {consulta,uno} from '../lib/db.js';
 import {interpretar} from '../lib/ai.js';
@@ -12,7 +13,7 @@ async function encontrarSesion(id,id_cliente){
   return uno('INSERT INTO conversaciones(id_cliente) VALUES($1) RETURNING *',[id_cliente]);
 }
 function fechaMensaje(){return new Date().toISOString();}
-export default async function handler(req,res){
+async function atender(req,res){
   try{
     metodo(req,['POST']);revisarAcceso(req);
     const texto=obligatorio(req.body?.mensaje,'Mensaje',1200);
@@ -87,5 +88,12 @@ export default async function handler(req,res){
     const mensajes=[...(Array.isArray(sesion.mensajes)?sesion.mensajes:[]),{rol:'cliente',texto,fecha:fechaMensaje()},{rol:'agente',texto:mensaje,fecha:fechaMensaje(),motor:interpretacion.motor,observacion}].slice(-60);
     await consulta('UPDATE conversaciones SET mensajes=$2::jsonb,id_cotizacion=$3,actualizado_en=now() WHERE id_conversacion=$1',[sesion.id_conversacion,JSON.stringify(mensajes),q?.id_cotizacion||null]);
     respuesta(res,200,{ok:true,id_conversacion:sesion.id_conversacion,mensajes,respuesta:mensaje,cotizacion:q,motor:interpretacion.motor,observacion});
+  }catch(err){errorJson(res,err);}
+}
+
+// Las operaciones comerciales, el historial y las aprobaciones pertenecen a la sesión de esta pestaña.
+export default async function handler(req,res){
+  try {
+    await enSimulacion(req,()=>atender(req,res));
   }catch(err){errorJson(res,err);}
 }

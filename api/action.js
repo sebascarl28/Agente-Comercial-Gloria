@@ -1,3 +1,4 @@
+import { enSimulacion } from '../lib/db.js';
 import { respuesta,errorJson,revisarAcceso,metodo,falla } from '../lib/http.js';
 import {crearCotizacion,modificarCotizacion,solicitarDescuento,clienteRespondeDescuento,crearCliente,solicitarCredito,clienteRespondeCredito,proponerEntrega,aceptarEntrega,confirmarDireccion,definirPago,confirmarPedido,detalleCotizacion} from '../lib/service.js';
 const acciones={
@@ -15,11 +16,18 @@ const acciones={
   confirmar_pedido:x=>confirmarPedido(x.id_cotizacion),
   detalle_cotizacion:x=>detalleCotizacion(x.id_cotizacion)
 };
-export default async function handler(req,res){
+async function atender(req,res){
   try {metodo(req,['POST']);revisarAcceso(req);
     const action=req.body?.accion;
     if(!Object.hasOwn(acciones,action))falla('Acción no reconocida.');
     const resultado=await acciones[action](req.body||{});
     respuesta(res,200,{ok:true,resultado});
+  }catch(err){errorJson(res,err);}
+}
+
+// Las operaciones comerciales, el historial y las aprobaciones pertenecen a la sesión de esta pestaña.
+export default async function handler(req,res){
+  try {
+    await enSimulacion(req,()=>atender(req,res));
   }catch(err){errorJson(res,err);}
 }

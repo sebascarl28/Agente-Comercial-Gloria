@@ -1,6 +1,7 @@
+import { enSimulacion } from '../lib/db.js';
 import {respuesta,errorJson,revisarAcceso,revisarRol,metodo,falla} from '../lib/http.js';
 import {listarAprobaciones,decidirCredito,decidirDescuento} from '../lib/service.js';
-export default async function handler(req,res){
+async function atender(req,res){
   try{
     metodo(req,['GET','POST']);revisarAcceso(req);
     const rol=req.method==='GET'?req.query?.rol:req.body?.rol;
@@ -12,5 +13,12 @@ export default async function handler(req,res){
       await decidirCredito(x.id_solicitud,x.decision,x.monto,x.plazo_dias,x.comentario):
       await decidirDescuento(x.id_solicitud,x.decision,x.porcentaje,x.comentario);
     respuesta(res,200,{ok:true,resultado});
+  }catch(err){errorJson(res,err);}
+}
+
+// Las operaciones comerciales, el historial y las aprobaciones pertenecen a la sesión de esta pestaña.
+export default async function handler(req,res){
+  try {
+    await enSimulacion(req,()=>atender(req,res));
   }catch(err){errorJson(res,err);}
 }

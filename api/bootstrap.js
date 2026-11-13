@@ -1,6 +1,7 @@
+import { enSimulacion } from '../lib/db.js';
 import { respuesta,errorJson,revisarAcceso,metodo } from '../lib/http.js';
 import { clientesYCatalogo,contextoCliente,detalleCotizacion,disponibilidad } from '../lib/service.js';
-export default async function handler(req,res){
+async function atender(req,res){
   try{
     metodo(req,['GET']);revisarAcceso(req);
     const base=await clientesYCatalogo();
@@ -11,5 +12,12 @@ export default async function handler(req,res){
     if(cotizacion&&cotizacion.id_cliente!==cliente_id)throw Object.assign(new Error('Cotización no corresponde al cliente seleccionado.'),{status:403});
     const stocks=await Promise.all(base.productos.map(async p=>({id_producto:p.id_producto,...await disponibilidad(p.id_producto)})));
     respuesta(res,200,{ok:true,...base,cliente, cotizacion, stocks});
+  }catch(err){errorJson(res,err);}
+}
+
+// Las operaciones comerciales, el historial y las aprobaciones pertenecen a la sesión de esta pestaña.
+export default async function handler(req,res){
+  try {
+    await enSimulacion(req,()=>atender(req,res));
   }catch(err){errorJson(res,err);}
 }

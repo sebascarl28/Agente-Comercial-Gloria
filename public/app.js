@@ -1,6 +1,13 @@
 const $ = (sel,root=document) => root.querySelector(sel);
 const $$ = (sel,root=document) => [...root.querySelectorAll(sel)];
-const app={view:'chat',clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},pins:{finanzas:sessionStorage.getItem('finanzas_pin')||'',jefatura:sessionStorage.getItem('jefatura_pin')||''},demoPin:sessionStorage.getItem('demo_pin')||'',ultimoMotor:null,busy:false};
+const DEMO_SESION_KEY='gloria_demo_session_v1';
+function nuevaSesionId(){
+  const id=crypto.randomUUID();
+  sessionStorage.setItem(DEMO_SESION_KEY,id);
+  return id;
+}
+const sesionActual=sessionStorage.getItem(DEMO_SESION_KEY)||nuevaSesionId();
+const app={sesionId:sesionActual,view:'chat' ,clienteId:'CLI-LA-001',cotizacionId:null,conversacionId:null,mensajes:[],datos:null,staff:{finanzas:[],jefatura:[]},pins:{finanzas:sessionStorage.getItem('finanzas_pin')||'',jefatura:sessionStorage.getItem('jefatura_pin')||''},demoPin:sessionStorage.getItem('demo_pin')||'',ultimoMotor:null,busy:false};
 const esc=x=>String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const money=x=>new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'}).format(Number(x||0));
 const day=x=>!x?'—':new Date(String(x).slice(0,10)+'T12:00:00Z').toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'});
@@ -13,7 +20,7 @@ const dato=(str)=>esc(str);
 let toastTimer;
 function toast(mensaje,esError=false){const t=$('#toast');t.textContent=mensaje;t.className='toast'+(esError?' error':'');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true},6000);}
 async function api(url,{method='GET',body,staff}={}){
-  const headers={'Content-Type':'application/json'};
+  const headers={'Content-Type':'application/json','X-Demo-Session':app.sesionId};
   if(app.demoPin)headers['X-Demo-Pin']=app.demoPin;
   if(staff)headers['X-Staff-Pin']=app.pins[staff]||'';
   const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});
@@ -58,7 +65,10 @@ function chatView(){
   const mensajes=app.mensajes.length?app.mensajes:welcome();
   const q=quote();
   const qactions=[['Catálogo','catalogo'],['Cotizar','cotizar'],['Opciones de pago','pago'],['Opciones de entrega','entrega'],['Solicitar descuento','descuento']];
-  return `${head('🤖','Atención Comercial con IA','Conversa, cotiza, negocia y gestiona pedidos.')}${barCliente()}
+  return `${head('🤖','Atención Comercial con IA','Conversa, cotiza, negocia y gestiona pedidos.')}
+  <div class="toolbar" style="display:flex;justify-content:flex-end;margin-top:-12px;margin-bottom:12px">
+    <button class="btn outline" type="button" data-nueva-simulacion title="Nueva sesión independiente con los mismos datos originales">↻ Nueva simulación</button>
+  </div>${barCliente()}
   <section class="card chat-card" aria-label="Conversación"><div class="chat-messages" id="chatHistory">${mensajes.map(m=>`<div class="chat-row ${m.rol==='cliente'?'client':'agente'}">${m.rol==='cliente'?'':'<div class="avatar">🤖</div>'}<div class="bubble">${esc(m.texto)}<div class="msg-meta">${m.fecha?new Date(m.fecha).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Lima'}):''}</div></div></div>`).join('')}</div></section>
   <div class="chat-actions">${qactions.map(([label,fast])=>`<button class="quick-btn" data-fast="${fast}">${esc(label)}</button>`).join('')}</div>
   <form id="chatForm" class="composer"><textarea id="chatMessage" placeholder="Escribe tu mensaje al Agente Comercial Gloria..." aria-label="Mensaje" rows="1" maxlength="1200" required></textarea><button title="Enviar" aria-label="Enviar mensaje" type="submit" ${app.busy?'disabled':''}>➤</button></form>
@@ -150,6 +160,13 @@ document.addEventListener('submit',e=>{const form=e.target;e.preventDefault();
 });
 document.addEventListener('keydown',e=>{if(e.target.id==='chatMessage'&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();e.target.closest('form')?.requestSubmit();}});
 document.addEventListener('click',e=>{const el=e.target.closest('button');if(!el||el.disabled)return;
+  if(el.dataset.nuevaSimulacion!==undefined){
+    if(!confirm('¿Iniciar otra simulación limpia? Se conservarán los datos originales de Gloria.'))return;
+    app.sesionId=nuevaSesionId();
+    app.view='chat';app.clienteId='CLI-LA-001';app.cotizacionId=null;app.conversacionId=null;
+    app.mensajes=[];app.datos=null;app.staff={finanzas:[],jefatura:[]};app.ultimoMotor=null;
+    return cargar();
+  }
   if(el.dataset.close!==undefined)return cerrarModal();
   if(el.dataset.top!==undefined)return elegirVista(el.dataset.top);
   if(el.dataset.view!==undefined)return elegirVista(el.dataset.view);
