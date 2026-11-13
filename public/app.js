@@ -81,6 +81,11 @@ function sugerenciasDelMomento(q){
   const ultimo=[...app.mensajes].reverse().find(m=>m.rol==='agente'&&m.estado_chat);
   const estado=ultimo?.estado_chat||{};
   const espera=estado.esperando;
+  if(espera==='ACLARAR_FECHA_CANTIDAD')return [['Solo cambiar fecha','Solo fecha'],['Modificar cantidades','Modificar cantidades']];
+  if(espera==='PEDIR_FECHA_EXACTA' && estado.fechas_sugeridas?.length){
+    return estado.fechas_sugeridas.map(f=>[day(f),f]);
+  }
+  if(espera==='ELEGIR_FECHA')return [['La próxima semana','La próxima semana'],['Esta semana','Esta semana'],['Lo antes posible','Lo antes posible']];
   if(espera==='ELEGIR_ACCION_MULTIPRODUCTO')return [['Reemplazar cantidades','Quiero modificar'],['Sumar esas cajas','Quiero sumar'],['Cancelar cambio','Cancelar']];
   if(espera==='SELECCIONAR_LECHES')return [['Leche UHT entera','Leche entera'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
   if(espera==='CANTIDAD_SELECCION'){

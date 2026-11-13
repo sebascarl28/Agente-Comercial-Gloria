@@ -6,6 +6,7 @@ import {interpretar} from '../lib/ai.js';
 import {avanzarSeleccion} from '../lib/seleccion-productos.js';
 import {interpretarCambio} from '../lib/cambios-conversacion.js';
 import {pideOrientacion,recomendacionProducto,quierePedirLeche} from '../lib/orientacion.js';
+import {atenderFechaRelativa,aclararFechaCantidad} from '../lib/fechas-conversacion.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
 import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
 import {contextoCliente,crearCotizacion,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea,cambiarLineas} from '../lib/service.js';
@@ -120,8 +121,10 @@ async function atender(req,res){
   const solicitaPC3=esEscenarioPC3() && /\b(?:caso\s+pc3|caso\s+del\s+informe|escenario\s+pc3)\b/.test(d.textoNormalizado) && /\b(?:quiero|prepara|preparar|inicia|iniciar|simula|simular|hagamos|hacer|probar)\b/.test(d.textoNormalizado);
   const orientacion=pideOrientacion(texto);
   const pideLeche=!q && !productoDicho && !d.cantidad && quierePedirLeche(texto);
-  const cambio=(solicitaPC3||orientacion||pideLeche)?null:interpretarCambio(texto,estado,q,interpretacion);
-  const seleccion=(cambio||solicitaPC3||orientacion||pideLeche)?null:avanzarSeleccion(texto,estado,q);
+  const fechaRelativa=!!q && q.estado!=='CONFIRMADA' && d.accion==='FECHA_RELATIVA';
+  const aclaracionFecha=q?aclararFechaCantidad(texto,estado,q):null;
+  const cambio=(solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:interpretarCambio(texto,estado,q,interpretacion);
+  const seleccion=(cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:avanzarSeleccion(texto,estado,q);
   if(productoDicho && !q)estado.producto=productoDicho;
   let mensaje='',observacion='Reglas ERP/CRM verificadas';
   const mayorDeUno=ctx=>ctx.cantidad_pendiente&&ctx.cantidad_pendiente>0;
@@ -172,6 +175,11 @@ async function atender(req,res){
      mensaje=explicarStockDeCotizacion(q,productoDicho);
    } else if(esEscenarioPC3() && /\b(?:cerradora|mantenimiento|parada\s+de\s+2|por\s+que\s+falta\s+evaporada)\b/.test(d.textoNormalizado)){
      mensaje='En el escenario PC3, la cerradora tiene una parada programada de 2 horas el 13/11/2026 (VEN-CIE-001). La capacidad de la línea en tres turnos baja de 19,200 a 17,600 cajas frente a 18,000 de carga (brecha de 400). Para La Alameda, se observa un faltante específico de 20 cajas de evaporada el 16/11 y se plantea OP-EVA-1711 para el 17/11. Las 400 cajas son una brecha agregada de capacidad, no 400 cajas faltantes en el pedido.';
+   } else if(aclaracionFecha){
+     mensaje=aclaracionFecha;
+   } else if(fechaRelativa){
+     // Pedir un día concreto sin modificar cantidades ni crear entregas.
+     mensaje=atenderFechaRelativa(d,estado,q);
    } else if(orientacion){
      // No se cambia el pedido; si hay varias líneas, preguntar antes de elegir una.
      const prod=productoDicho||((q?.items?.length||0)>1?null:(estado.producto||q?.id_producto));
