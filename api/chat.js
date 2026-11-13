@@ -1,3 +1,4 @@
+import {revisarTrasCambio} from '../lib/revisar-cambio.js';
 import {randomUUID} from 'node:crypto';
 import {pideNuevaCotizacion,preguntaLimiteDescuento} from '../lib/ciclo-cotizacion.js';
 import {esEscenarioPC3,PRIMERA_ENTREGA_PC3,SEGUNDA_ENTREGA_PC3} from '../lib/escenario.js';
@@ -80,7 +81,7 @@ function siguienteNatural(q,estado){
   if(!q.entregas?.length){estado.esperando='ELEGIR_ENTREGA';return propuesta(q,estado);}
   if(!q.entrega_aceptada){estado.esperando='ACEPTAR_ENTREGA';return `La entrega propuesta es ${q.entregas.map(x=>`${x.cajas} cajas de ${nombres[x.id_producto]||'leche'} el ${fecha(x.fecha)}`).join(' y ')}; quedará sujeta a validación logística y, si hay producción, a Calidad. ¿Aceptas estas fechas?`;}
   if(q.forma_pago==='SIN_DEFINIR'){estado.esperando='ELEGIR_PAGO';return '¿Prefieres pagar al contado, usar el crédito aprobado o un anticipo del 40% (opción académica)?';}
-  if(!estado.descuento_consultado&&!q.aprobaciones?.length){estado.esperando='DESCUENTO_OPCIONAL';return '¿Deseas solicitar un descuento antes de cerrar la cotización? Puedes decirme un porcentaje o responder «sin descuento». Si solicitas más del 5%, Jefatura lo evalúa.';}
+  if(!estado.descuento_consultado&&!q.aprobaciones?.some(x=>x.estado!=='INVALIDADA')){estado.esperando='DESCUENTO_OPCIONAL';return '¿Deseas solicitar un descuento antes de cerrar la cotización? Puedes decirme un porcentaje o responder «sin descuento». Si solicitas más del 5%, Jefatura lo evalúa.';}
   if(!q.direccion_confirmada){
     if(estado.direccion_borrador?.direccion && estado.direccion_borrador?.distrito){
       estado.esperando='ACEPTAR_DIRECCION_NUEVA';
@@ -234,9 +235,10 @@ async function atender(req,res){
      mensaje='¡Claro! ¿Qué tipo de leche necesitas: UHT entera, evaporada o fresca?';
    } else if(cambio){
      if(cambio.operaciones){
+       const anterior=q;
        q=await cambiarLineas(q.id_cotizacion,cambio.operaciones,{modo:cambio.modo,version:cambio.version});
-       delete estado.cambio_multi;estado.confirmacion_final=null;
-       mensaje=`${cambio.modo==='FIJAR'?'Actualicé las cantidades':'Sumé las cajas indicadas'}. ${propuesta(q,estado)} Como cambiaron los productos o cantidades, revisaremos nuevamente las condiciones de entrega y descuento.`;
+       const revision=await revisarTrasCambio(anterior,q,estado,proponerEntrega);q=revision.cotizacion;
+       mensaje=`${cambio.modo==='AGREGAR'?'Sumé las cajas indicadas':'Actualicé tu cotización'}: ${resumenLineas(q)}. ${revision.mensaje||`${revision.aviso} ${propuesta(q,estado)}`}`;
      }else mensaje=cambio.mensaje;
    } else if(seleccion){
      if(seleccion.operaciones){

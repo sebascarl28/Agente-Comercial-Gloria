@@ -82,6 +82,7 @@ function sugerenciasDelMomento(q){
   const ultimo=[...app.mensajes].reverse().find(m=>m.rol==='agente'&&m.estado_chat);
   const estado=ultimo?.estado_chat||{};
   const espera=estado.esperando;
+  if(espera==='ACLARAR_CAMBIO_PRODUCTOS')return [['Reemplazar productos','Reemplazar productos'],['Conservar los demás','Conservar los demas'],['Cancelar','Cancelar']];
   if(espera==='ACLARAR_FECHA_CANTIDAD')return [['Solo cambiar fecha','Solo fecha'],['Modificar cantidades','Modificar cantidades']];
   if(espera==='PEDIR_FECHA_EXACTA' && estado.fechas_sugeridas?.length){
     return estado.fechas_sugeridas.map(f=>[day(f),f]);
