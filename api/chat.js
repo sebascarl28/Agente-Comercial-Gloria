@@ -222,6 +222,13 @@ async function atender(req,res){
        q=await cambiarLinea(q.id_cotizacion,prod,d.cantidad||interpretacion.cantidad,{modo:'FIJAR'});
        mensaje=`Actualicé las cajas de ${nombres[prod]}. Ahora llevamos ${resumenLineas(q)}. ¿Seguimos con las entregas?`;
      }else {estado.esperando='ELEGIR_CAMBIO_LINEA';estado.producto_cambio=prod;estado.cantidad_cambio=d.cantidad||interpretacion.cantidad;mensaje=`Ya tenemos ${resumenLineas(q)}. ¿Deseas sumar ${d.cantidad} cajas de ${nombres[prod]} o cambiar su cantidad a ${d.cantidad}?`;}
+   } else if(q?.entregas?.length && !q.entrega_aceptada && d.accion==='FECHA' && d.fecha && q.entregas.every(x=>fecha(x.fecha)===d.fecha)){
+     // El cliente repitió una fecha que ya figura en la propuesta pendiente.
+     // No regenerar cotización ni repetir el mismo texto: pedir consentimiento explícito.
+     estado.esperando='ACEPTAR_ENTREGA';
+     const total=q.entregas.reduce((n,x)=>n+Number(x.cajas||0),0);
+     const f=d.fecha.split('-').reverse().join('/');
+     mensaje=`Sí, el ${f} ya está anotado en nuestra propuesta para las ${total} cajas. Aún no la he confirmado porque necesito tu aceptación. ¿Estás de acuerdo con esa entrega? Puedes responder «Acepto» o pedirme otra fecha.`;
    } else if(q && d.accion==='ENTREGA' && q.items?.length>1 || q && (d.accion==='FECHA'||d.accion==='FECHA_RELATIVA') && q.items?.length>1){
      const faltan=q.items.filter(x=>x.cantidad>x.disponibilidad.disponibles+x.disponibilidad.planificadas);
      if(faltan.length)mensaje=`Antes de coordinar, falta cobertura de ${faltan.map(x=>x.producto_nombre).join(' y ')}. Puedo ayudarte a ajustar las cajas.`;
