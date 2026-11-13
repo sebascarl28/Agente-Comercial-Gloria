@@ -88,6 +88,8 @@ function sugerenciasDelMomento(q){
     return faltan>1?[['50 de cada una','50 cajas de cada una'],['100 de cada una','100 cajas de cada una']]:[['10 cajas','10 cajas'],['30 cajas','30 cajas'],['50 cajas','50 cajas']];
   }
   if(espera==='MODIFICAR_LINEAS')return [['Ver cotización','¿Cómo va mi cotización?'],['Añadir otra leche','¿Puedo añadir otro producto?']];
+  if(espera==='PEDIR_PRODUCTO')return [['Leche UHT entera','Leche entera'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
+  if(espera==='PEDIR_CANTIDAD')return [['10 cajas','10 cajas'],['30 cajas','30 cajas'],['50 cajas','50 cajas'],['Consultar stock','¿Cuánto stock hay?']];
   if(espera==='CONFIRMAR_TIPO_LECHE')return [['Sí, es ese','Sí'],['No, otro producto','No']];
   if(espera==='AGREGAR_PRODUCTO')return [['Leche UHT','Leche UHT'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
   if(espera==='ELEGIR_CAMBIO_LINEA')return [['Sumar cajas','Sumar esas cajas'],['Cambiar cantidad','Cambiar a esa cantidad']];

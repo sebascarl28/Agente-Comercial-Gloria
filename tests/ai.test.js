@@ -54,3 +54,18 @@ test('Tras dos respuestas JSON inválidas informa el problema sin exponer el con
  try{const r=await interpretar('hola asesor');assert.equal(calls,2);assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/json_validate_failed/);assert.doesNotMatch(JSON.stringify(r),/texto privado|clave-de-prueba/);}
  finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;}
 });
+test('tool_use_failed intenta una sola vez con JSON alternativo sin usar herramientas',async()=>{
+ const key=process.env.GROQ_API_KEY,model=process.env.GROQ_MODEL,original=globalThis.fetch;
+ process.env.GROQ_API_KEY='clave-de-prueba';process.env.GROQ_MODEL='openai/gpt-oss-20b';const llamadas=[];
+ globalThis.fetch=async(url,opts)=>{
+  llamadas.push(JSON.parse(opts.body));
+  if(llamadas.length===1)return new Response(JSON.stringify({error:{code:'tool_use_failed',failed_generation:'privado'}}),{status:400});
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({accion:'conversar',respuesta_libre:'Hola, te escucho.'})}}]}),{status:200});
+ };
+ try{const r=await interpretar('soy un tigre que quiere galletas');
+  assert.equal(r.motor,'groq');assert.equal(llamadas.length,2);
+  assert.equal(llamadas[0].response_format.type,'json_schema');assert.equal(llamadas[1].response_format.type,'json_object');
+  assert.equal(llamadas[1].temperature,0.1);assert.equal(llamadas[1].tools,undefined);
+  assert.doesNotMatch(JSON.stringify(r),/privado|clave-de-prueba/);
+ }finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;if(model===undefined)delete process.env.GROQ_MODEL;else process.env.GROQ_MODEL=model;}
+});
