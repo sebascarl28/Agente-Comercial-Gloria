@@ -56,7 +56,7 @@ test('servidor prioriza contexto PC3 antes que interpretar cantidad adicional',(
   const stock=src.indexOf('esConsultaStock(texto) && !esTodoStock(texto)');
   const cantidad=src.indexOf("d.accion==='CANTIDAD' && d.cantidad");
   assert.ok(stock>0 && stock<cantidad);
-  assert.ok(src.indexOf('esPreguntaFaltanteEntrega(texto)')>stock);
+  assert.ok(src.indexOf('esCotizacionOficialPC3(q) && esPreguntaFaltanteEntrega(texto)')>stock);
   assert.ok(src.includes("d.fecha===PRIMERA_ENTREGA_PC3"));
   assert.ok(src.includes('mensajeFaltantePC3()'));
 });

@@ -7,9 +7,11 @@ import {avanzarSeleccion} from '../lib/seleccion-productos.js';
 import {interpretarCambio} from '../lib/cambios-conversacion.js';
 import {pideOrientacion,recomendacionProducto,quierePedirLeche} from '../lib/orientacion.js';
 import {atenderFechaRelativa,aclararFechaCantidad} from '../lib/fechas-conversacion.js';
+import {interpretarPedidoNuevo,hayLineaNoReconocida} from '../lib/interpretacion-pedido.js';
+import {pidePrecio,preferenciasPrecio,respuestaPrecios,respuestaTotalCotizacion} from '../lib/precios-conversacion.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
 import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
-import {contextoCliente,crearCotizacion,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea,cambiarLineas} from '../lib/service.js';
+import {contextoCliente,crearCotizacion,crearCotizacionLineas,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea,cambiarLineas} from '../lib/service.js';
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura} from '../lib/rules.js';
 import {siguientePaso,estadoComercial,pendientesDescuento,resumenHabilitado,firmaCondiciones,confirmacionVigente,creditoInsuficiente} from '../lib/negociacion.js';
 
@@ -119,13 +121,16 @@ async function atender(req,res){
   const d=leerTurno(texto,{estado,cotizacion:q,interpretacion});
   const productoDicho=productoExplicito(texto);
   const solicitaPC3=esEscenarioPC3() && /\b(?:caso\s+pc3|caso\s+del\s+informe|escenario\s+pc3)\b/.test(d.textoNormalizado) && /\b(?:quiero|prepara|preparar|inicia|iniciar|simula|simular|hagamos|hacer|probar)\b/.test(d.textoNormalizado);
-  const orientacion=pideOrientacion(texto);
-  const pideLeche=!q && !productoDicho && !d.cantidad && quierePedirLeche(texto);
+  const precios=pidePrecio(texto)||(interpretacion.motor==='groq'&&interpretacion.accion==='precio'&&/\b(?:cuant\w*|val\w*|cost\w*|prec\w*|importe|soles|monto|pag\w*)\b/.test(d.textoNormalizado));
+  const orientacion=!precios && pideOrientacion(texto);
+  const propuestaPedido=(precios||orientacion||solicitaPC3)?null:interpretarPedidoNuevo(texto,estado,q,interpretacion);
+  const pideLeche=!precios && !propuestaPedido && !q && !productoDicho && !d.cantidad && quierePedirLeche(texto);
   const fechaRelativa=!!q && q.estado!=='CONFIRMADA' && d.accion==='FECHA_RELATIVA';
   const aclaracionFecha=q?aclararFechaCantidad(texto,estado,q):null;
-  const cambio=(solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:interpretarCambio(texto,estado,q,interpretacion);
-  const seleccion=(cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:avanzarSeleccion(texto,estado,q);
-  if(productoDicho && !q)estado.producto=productoDicho;
+  const cambio=(precios||propuestaPedido||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:interpretarCambio(texto,estado,q,interpretacion);
+  const pedidoInseguro=!precios && !cambio && !!q && !d.modo && !d.fecha && !fechaRelativa && !esConsultaStock(texto) && !esPreguntaFaltanteEntrega(texto) && hayLineaNoReconocida(texto);
+  const seleccion=(precios||propuestaPedido||pedidoInseguro||cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:avanzarSeleccion(texto,estado,q);
+  if(productoDicho && !q && !precios && !propuestaPedido)estado.producto=productoDicho;
   let mensaje='',observacion='Reglas ERP/CRM verificadas';
   const mayorDeUno=ctx=>ctx.cantidad_pendiente&&ctx.cantidad_pendiente>0;
   const nuevaCotizacion=async(prod,cant)=>{
@@ -138,7 +143,21 @@ async function atender(req,res){
   try{
    // Una aceptación se interpreta respecto a la pregunta pendiente. Si hay falta de
    // cobertura, nunca se convierte un «sí» genérico en pedido confirmado.
-   if(solicitaPC3){
+   if(precios){
+     const total=respuestaTotalCotizacion(texto,q);
+     if(total)mensaje=total;
+     else {const catalogo=await consulta('SELECT id_producto,nombre,precio,unidades_caja FROM productos WHERE activo=true ORDER BY id_producto');
+       mensaje=respuestaPrecios(catalogo,preferenciasPrecio(texto,estado,q,interpretacion));}
+   } else if(propuestaPedido){
+     if(propuestaPedido.operaciones){
+       q=await crearCotizacionLineas(idCliente,propuestaPedido.operaciones);
+       estado.producto=propuestaPedido.operaciones.at(-1).id;
+       delete estado.propuesta_productos;delete estado.seleccion_productos;estado.cantidad_pendiente=null;estado.agregando_producto=false;
+       mensaje=propuesta(q,estado);
+     }else mensaje=propuestaPedido.mensaje;
+   } else if(pedidoInseguro){
+     mensaje='No pude identificar todas las leches y cantidades con seguridad. ¿Puedes indicarlas por separado? Así no cambiaré tu cotización por error.';
+   } else if(solicitaPC3){
      // La solicitud académica se prepara en tres líneas de UNA cotización.
      // No se reserva inventario ni se promete ninguna fecha en este paso.
      q=await crearCotizacion(idCliente,'PRD-001',180);
@@ -195,11 +214,14 @@ async function atender(req,res){
      }else mensaje=cambio.mensaje;
    } else if(seleccion){
      if(seleccion.operaciones){
-       for(const item of seleccion.operaciones){
-         if(!q || q.estado==='CONFIRMADA')q=await crearCotizacion(idCliente,item.id,item.cantidad);
-         else q=await cambiarLinea(q.id_cotizacion,item.id,item.cantidad,{modo:'AGREGAR'});
-         // Si falla una línea posterior, no volver a sumar las ya registradas.
-         estado.seleccion_productos.items=estado.seleccion_productos.items.filter(x=>x.id!==item.id);
+       if((!q || q.estado==='CONFIRMADA') && seleccion.operaciones.length>1){
+         q=await crearCotizacionLineas(idCliente,seleccion.operaciones);
+       }else{
+         for(const item of seleccion.operaciones){
+           if(!q || q.estado==='CONFIRMADA')q=await crearCotizacion(idCliente,item.id,item.cantidad);
+           else q=await cambiarLinea(q.id_cotizacion,item.id,item.cantidad,{modo:'AGREGAR'});
+           estado.seleccion_productos.items=estado.seleccion_productos.items.filter(x=>x.id!==item.id);
+         }
        }
        delete estado.seleccion_productos;estado.producto=seleccion.operaciones.at(-1).id;
        estado.cantidad_pendiente=null;estado.agregando_producto=false;

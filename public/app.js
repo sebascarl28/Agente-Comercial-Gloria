@@ -86,6 +86,7 @@ function sugerenciasDelMomento(q){
     return estado.fechas_sugeridas.map(f=>[day(f),f]);
   }
   if(espera==='ELEGIR_FECHA')return [['La próxima semana','La próxima semana'],['Esta semana','Esta semana'],['Lo antes posible','Lo antes posible']];
+  if(espera==='CONFIRMAR_PRODUCTOS_INTERPRETADOS')return [['Sí, es correcto','Sí'],['Corregir','Corregir']];
   if(espera==='ELEGIR_ACCION_MULTIPRODUCTO')return [['Reemplazar cantidades','Quiero modificar'],['Sumar esas cajas','Quiero sumar'],['Cancelar cambio','Cancelar']];
   if(espera==='SELECCIONAR_LECHES')return [['Leche UHT entera','Leche entera'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
   if(espera==='CANTIDAD_SELECCION'){
