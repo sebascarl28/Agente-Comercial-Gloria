@@ -54,7 +54,7 @@ test('por qué no entregan todo el 16: explicación aun sin Groq',()=>{
 test('servidor prioriza contexto PC3 antes que interpretar cantidad adicional',()=>{
   const src=readFileSync(new URL('../api/chat.js',import.meta.url),'utf8');
   const stock=src.indexOf('esConsultaStock(texto) && !esTodoStock(texto)');
-  const cantidad=src.indexOf("d.accion==='CANTIDAD' && (d.cantidad||interpretacion.cantidad)");
+  const cantidad=src.indexOf("d.accion==='CANTIDAD' && d.cantidad");
   assert.ok(stock>0 && stock<cantidad);
   assert.ok(src.indexOf('esPreguntaFaltanteEntrega(texto)')>stock);
   assert.ok(src.includes("d.fecha===PRIMERA_ENTREGA_PC3"));

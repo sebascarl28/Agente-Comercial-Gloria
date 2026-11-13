@@ -81,6 +81,13 @@ function sugerenciasDelMomento(q){
   const ultimo=[...app.mensajes].reverse().find(m=>m.rol==='agente'&&m.estado_chat);
   const estado=ultimo?.estado_chat||{};
   const espera=estado.esperando;
+  if(espera==='ELEGIR_ACCION_MULTIPRODUCTO')return [['Reemplazar cantidades','Quiero modificar'],['Sumar esas cajas','Quiero sumar'],['Cancelar cambio','Cancelar']];
+  if(espera==='SELECCIONAR_LECHES')return [['Leche UHT entera','Leche entera'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
+  if(espera==='CANTIDAD_SELECCION'){
+    const faltan=(estado.seleccion_productos?.items||[]).filter(x=>x.cantidad===null).length;
+    return faltan>1?[['50 de cada una','50 cajas de cada una'],['100 de cada una','100 cajas de cada una']]:[['10 cajas','10 cajas'],['30 cajas','30 cajas'],['50 cajas','50 cajas']];
+  }
+  if(espera==='MODIFICAR_LINEAS')return [['Ver cotización','¿Cómo va mi cotización?'],['Añadir otra leche','¿Puedo añadir otro producto?']];
   if(espera==='CONFIRMAR_TIPO_LECHE')return [['Sí, es ese','Sí'],['No, otro producto','No']];
   if(espera==='AGREGAR_PRODUCTO')return [['Leche UHT','Leche UHT'],['Leche evaporada','Leche evaporada'],['Leche fresca','Leche fresca']];
   if(espera==='ELEGIR_CAMBIO_LINEA')return [['Sumar cajas','Sumar esas cajas'],['Cambiar cantidad','Cambiar a esa cantidad']];
@@ -95,7 +102,7 @@ function sugerenciasDelMomento(q){
   if(espera==='ACLARAR_FECHA')return [['Vencimiento','Fecha de vencimiento'],['Entrega','Fecha de entrega']];
   if(espera==='REDUCIR_CANTIDAD'&&q)return [['Mantener cantidad','Quiero mantener el pedido completo'],['Entrega parcial','Prefiero entrega parcial'],['Revisar Planeamiento','Consultar Planeamiento']];
   if(!q)return [['Ver tipos de leche','¿Qué leches tienes?'],['Consultar stock','¿Qué stock tienes de leche UHT?'],['Cotizar leche fresca','Quiero cotizar leche fresca']];
-  if(!q.entregas?.length)return [['Añadir otra leche','¿Puedo añadir otro producto?'],['¿Qué stock hay?','¿Qué stock tienes del producto?'],['Negociar entrega','Quiero acordar una fecha de entrega']];
+  if(!q.entregas?.length)return [['Añadir otra leche','¿Puedo añadir otro producto?'],['Modificar cantidades','Quiero modificar'],['¿Qué stock hay?','¿Qué stock tienes del producto?'],['Negociar entrega','Quiero acordar una fecha de entrega']];
   if(!q.entrega_aceptada)return [['Aceptar propuesta','Acepto la entrega'],['Cambiar fechas','Quiero cambiar las fechas']];
   if(q.forma_pago==='SIN_DEFINIR')return [['Con mi crédito','Quiero pagar con el crédito aprobado'],['Pago contado','Quiero pagar al contado']];
   return [['Añadir otra leche','¿Puedo añadir otro producto?'],['Consultar cotización','¿Cómo va mi cotización?'],['Solicitar descuento','Quiero solicitar descuento']];

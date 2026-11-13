@@ -25,3 +25,32 @@ test('sin API mantiene conversación contextual sin inventar stock',async()=>{
     if(before!==undefined)process.env.GROQ_API_KEY=before;
   }
 });
+
+test('Groq usa esquema estricto y reintenta una vez cuando falla la validación JSON',async()=>{
+ const key=process.env.GROQ_API_KEY,model=process.env.GROQ_MODEL,original=globalThis.fetch;
+ process.env.GROQ_API_KEY='clave-de-prueba';process.env.GROQ_MODEL='openai/gpt-oss-120b';
+ let calls=[];
+ globalThis.fetch=async(url,opts)=>{
+   calls.push(JSON.parse(opts.body));
+   if(calls.length===1)return new Response(JSON.stringify({error:{code:'json_validate_failed'}}),{status:400,headers:{'Content-Type':'application/json'}});
+   return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({accion:'conversar',respuesta_libre:'Hola, ¿cómo te ayudo?'})}}]}),{status:200,headers:{'Content-Type':'application/json'}});
+ };
+ try{
+   const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+   assert.equal(r.motor,'groq');assert.equal(r.respuesta_libre,'Hola, ¿cómo te ayudo?');
+   assert.equal(calls.length,2);assert.equal(calls[0].response_format.type,'json_schema');
+   assert.equal(calls[0].response_format.json_schema.strict,true);
+ }finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;if(model===undefined)delete process.env.GROQ_MODEL;else process.env.GROQ_MODEL=model;}
+});
+test('Groq no reintenta un fallo de autenticación',async()=>{
+ const key=process.env.GROQ_API_KEY,original=globalThis.fetch;process.env.GROQ_API_KEY='clave-de-prueba';let calls=0;
+ globalThis.fetch=async()=>{calls++;return new Response(JSON.stringify({error:{code:'invalid_api_key'}}),{status:401});};
+ try{const r=await interpretar('hola asesor');assert.equal(calls,1);assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/401/);}
+ finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;}
+});
+test('Tras dos respuestas JSON inválidas informa el problema sin exponer el contenido del error',async()=>{
+ const key=process.env.GROQ_API_KEY,original=globalThis.fetch;process.env.GROQ_API_KEY='clave-de-prueba';let calls=0;
+ globalThis.fetch=async()=>{calls++;return new Response(JSON.stringify({error:{code:'json_validate_failed',failed_generation:'texto privado'}}),{status:400});};
+ try{const r=await interpretar('hola asesor');assert.equal(calls,2);assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/json_validate_failed/);assert.doesNotMatch(JSON.stringify(r),/texto privado|clave-de-prueba/);}
+ finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;}
+});
