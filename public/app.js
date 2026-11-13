@@ -16,6 +16,15 @@ const head=(icon,title,subtitle)=>`<div class="page-heading"><div class="heading
 const button=(txt,attr='',variant='secondary')=>`<button type="button" class="btn ${variant}" ${attr}>${esc(txt)}</button>`;
 const nombreCliente=()=>app.datos?.cliente?.cliente?.razon_social||'Seleccionar cliente';
 const quote=()=>app.datos?.cotizacion;
+// El resumen SOLO aparece al cerrar la negociación; una cotización borrador permanece en el chat.
+function mostrarResumenFinal(q){
+  if(!q)return false;
+  if(q.estado==='CONFIRMADA')return true;
+  const pendiente=(q.aprobaciones||[]).some(x=>['PENDIENTE_JEFATURA','OFERTADO'].includes(x.estado));
+  const creditoOk=q.forma_pago!=='CREDITO'||(Number(q.linea_credito)-Number(q.deuda_vigente)>=Number(q.total));
+  return !!q.direccion_confirmada && !!q.entrega_aceptada && !!q.entregas?.length &&
+    !!q.forma_pago && q.forma_pago!=='SIN_DEFINIR' && !pendiente && creditoOk;
+}
 const dato=(str)=>esc(str);
 let toastTimer;
 function toast(mensaje,esError=false){const t=$('#toast');t.textContent=mensaje;t.className='toast'+(esError?' error':'');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true},6000);}
@@ -73,7 +82,7 @@ function chatView(){
   <div class="chat-actions">${qactions.map(([label,fast])=>`<button class="quick-btn" data-fast="${fast}">${esc(label)}</button>`).join('')}</div>
   <form id="chatForm" class="composer"><textarea id="chatMessage" placeholder="Escribe tu mensaje al Agente Comercial Gloria..." aria-label="Mensaje" rows="1" maxlength="1200" required></textarea><button title="Enviar" aria-label="Enviar mensaje" type="submit" ${app.busy?'disabled':''}>➤</button></form>
   <p class="compact-note">${app.ultimoMotor==='groq'?'✓ Groq respondió · Operaciones validadas por el backend':app.ultimoMotor==='respaldo_groq'?'⚠ Modo guiado: Groq no respondió. Revisa Vercel → Logs y GROQ_API_KEY/GROQ_MODEL.':app.ultimoMotor==='reglas_sin_groq'?'Modo guiado: falta configurar GROQ_API_KEY.':app.datos.con_groq?'Groq configurado · Envía un mensaje para verificar la conexión':'Modo guiado: falta GROQ_API_KEY.'}</p>
-  ${creditoOferta()?creditoOferta():''}${q?summaryView(q):''}`;
+  ${creditoOferta()?creditoOferta():''}${mostrarResumenFinal(q)?summaryView(q):''}`;
 }
 function creditoOferta(){const c=app.datos.cliente?.creditos?.find(x=>x.estado==='OFERTADO');if(!c)return '';return `<section class="card panel" style="margin-top:12px"><strong>🏦 Finanzas respondió a tu solicitud</strong><p>Se ha autorizado ofrecer ${money(c.monto_ofrecido)} a ${c.plazo_ofrecido} días; la línea todavía no está activada.</p><div class="chat-actions">${button('Aceptar crédito',`data-responder-credit="${esc(c.id_solicitud)}" data-acepta="true"`,'primary')}${button('Rechazar oferta',`data-responder-credit="${esc(c.id_solicitud)}" data-acepta="false"`,'outline')}</div></section>`;}
 function summaryView(q){
@@ -82,13 +91,13 @@ function summaryView(q){
   const deliveries=q.entregas?.length?q.entregas.map(e=>`${e.cajas} cajas · ${day(e.fecha)}${e.origen==='PRODUCCION'?' (producción pendiente QM)':''}`).join(' / '):'Pendiente de acordar';
   const pendientes=[];if(!q.direccion_confirmada)pendientes.push('confirmar dirección');if(q.forma_pago==='SIN_DEFINIR')pendientes.push('definir pago');if(!q.entrega_aceptada)pendientes.push('aceptar entregas');if(ap)pendientes.push('resolver descuento con Jefatura y cliente');
   const listo=!pendientes.length&&q.estado!=='CONFIRMADA';
-  return `<section class="card summary"><div class="summary-header"><h2>▤ Resumen ${q.estado==='CONFIRMADA'?'del pedido':'de la cotización'} · V${q.version}</h2>${badge(q.estado==='CONFIRMADA'?'CONFIRMADA':pendientes.length?'EN NEGOCIACIÓN':'LISTA PARA CONFIRMAR',q.estado==='CONFIRMADA'||!pendientes.length?'success':'warn')}</div>
+  return `<section class="card summary"><div class="summary-header"><h2>▤ Resumen final ${q.estado==='CONFIRMADA'?'del pedido':'de la cotización'} · V${q.version}</h2>${badge(q.estado==='CONFIRMADA'?'CONFIRMADA':pendientes.length?'EN NEGOCIACIÓN':'LISTA PARA CONFIRMAR',q.estado==='CONFIRMADA'||!pendientes.length?'success':'warn')}</div>
   <div class="summary-body">
     <div class="kv"><span class="key">Cliente</span><span class="value">${esc(q.razon_social)}</span></div>
     <div class="kv"><span class="key">Producto</span><span class="value">${esc(q.producto_nombre)}</span></div>
     <div class="kv"><span class="key">Dirección</span><span class="value">${esc((q.direccion||'')+', '+(q.distrito||''))} ${q.direccion_confirmada?'✓':'(por confirmar)'}</span></div>
     <div class="kv"><span class="key">Cantidad</span><span class="value">${q.cantidad} cajas</span></div>
-    <div class="kv"><span class="key">Disponibilidad hoy</span><span class="value">${q.disponibilidad?.disponibles??0} cajas liberadas</span></div>
+    <div class="kv"><span class="key">Stock libre al consultar</span><span class="value">${q.disponibilidad?.disponibles??0} cajas liberadas</span></div>
     <div class="kv"><span class="key">Descuento aplicado</span><span class="value">${q.descuento_pct}% ${ap?'(solicitud pendiente)':''}</span></div>
     <div class="kv"><span class="key">Pago</span><span class="value">${esc(q.forma_pago.replaceAll('_',' '))}</span></div>
     <div class="kv"><span class="key">Entrega</span><span class="value">${esc(deliveries)}</span></div>
