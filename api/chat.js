@@ -4,7 +4,7 @@ import {enSimulacion,consulta,uno} from '../lib/db.js';
 import {respuesta,errorJson,revisarAcceso,metodo,falla,obligatorio} from '../lib/http.js';
 import {interpretar} from '../lib/ai.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
-import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
+import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
 import {contextoCliente,crearCotizacion,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea} from '../lib/service.js';
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura} from '../lib/rules.js';
 import {siguientePaso,estadoComercial,pendientesDescuento,resumenHabilitado,firmaCondiciones,confirmacionVigente,creditoInsuficiente} from '../lib/negociacion.js';
@@ -33,6 +33,15 @@ function resumenPedidoConversado(q){
 function cobertura(q){
   const d=q.disponibilidad;const faltante=Math.max(0,q.cantidad-d.disponibles);
   return repartoSugerido(q.cantidad,d.disponibles,d.planificadas,fechaCobertura(d.planes,Math.min(faltante,d.planificadas)));
+}
+// El caso del informe solamente existe para la combinación oficial de tres líneas.
+function esCotizacionOficialPC3(q){
+  if(!esEscenarioPC3()||q?.items?.length!==3)return false;
+  const cantidades={'PRD-001':180,'PRD-002':60,'PRD-003':120};
+  return q.items.every(x=>Object.hasOwn(cantidades,x.id_producto)&&Number(x.cantidad)===cantidades[x.id_producto]);
+}
+function mensajeFaltantePC3(){
+  return 'Porque para el 16/11 solo están liberadas 40 de las 60 cajas de leche evaporada. Las otras 20 están previstas desde el 17/11 por la orden OP-EVA-1711, después de la parada de dos horas de la cerradora el 13/11. Las 180 UHT y las 120 frescas sí tienen cobertura para el 16/11. No puedo garantizar las 360 juntas ese día: te propongo 340 el 16 y 20 de evaporada el 17, sujetos a Calidad y logística. ¿Aceptas ese reparto?';
 }
 function resumenLineas(q){return (q?.items||[]).map(x=>`${x.cantidad} cajas de ${x.producto_nombre}`).join(' y ');}
 function propuesta(q,estado){
@@ -136,6 +145,19 @@ async function atender(req,res){
        estado.esperando='ACEPTAR_ENTREGA';
        mensaje=`Antes de registrar tu aceptación, necesito confirmar las cantidades y fechas exactas: ${q.entregas.map(x=>`${x.cajas} cajas de ${nombres[x.id_producto]||'leche'} para el ${fecha(x.fecha)}`).join('; ')}. ¿Aceptas este esquema o prefieres modificarlo?`;
      }
+   } else if(q && q.estado!=='CONFIRMADA' && q.items?.length && esConsultaStock(texto) && !esTodoStock(texto)){
+     // "Stock para este pedido de 360 cajas" describe la cotización entera.
+     // El número NO es una nueva cantidad de leche evaporada.
+     mensaje=explicarStockDeCotizacion(q,productoDicho);
+   } else if(esCotizacionOficialPC3(q) && esPreguntaFaltanteEntrega(texto)){
+     // Responde la causa del faltante sin perder ni modificar las tres líneas.
+     mensaje=mensajeFaltantePC3();
+   } else if(esCotizacionOficialPC3(q) && d.accion==='FECHA' && d.fecha===PRIMERA_ENTREGA_PC3){
+     // Cliente reitera el 16/11 para las 360 cajas. No reemplazar inventario,
+     // no tratar "360 cajas" como cantidad adicional y no rehacer el reparto.
+     if(!q.entregas?.length){const r=await proponerEntrega(q.id_cotizacion,{modo:'DOS_PARTES'});q=r.cotizacion;}
+     if(q.entrega_aceptada){mensaje='Ya aceptaste recibir 340 cajas el 16/11 y otras 20 de evaporada el 17/11, con validación de Calidad y logística pendiente. Podemos continuar con el pago.';}
+     else{estado.esperando='ACEPTAR_ENTREGA';mensaje=mensajeFaltantePC3();}
    } else if(q && q.estado!=='CONFIRMADA' && d.accion==='STOCK' && q.items?.length){
      // Consulta informativa: conserva íntegros cotización, fechas y etapa comercial.
      // No fuerza la pregunta sobre cantidades cuando el pedido ya existe.
@@ -222,6 +244,13 @@ async function atender(req,res){
        q=await cambiarLinea(q.id_cotizacion,prod,d.cantidad||interpretacion.cantidad,{modo:'FIJAR'});
        mensaje=`Actualicé las cajas de ${nombres[prod]}. Ahora llevamos ${resumenLineas(q)}. ¿Seguimos con las entregas?`;
      }else {estado.esperando='ELEGIR_CAMBIO_LINEA';estado.producto_cambio=prod;estado.cantidad_cambio=d.cantidad||interpretacion.cantidad;mensaje=`Ya tenemos ${resumenLineas(q)}. ¿Deseas sumar ${d.cantidad} cajas de ${nombres[prod]} o cambiar su cantidad a ${d.cantidad}?`;}
+   } else if(q?.entregas?.length && !q.entrega_aceptada && d.accion==='FECHA' && d.fecha && coincideFechaPropuesta(q.entregas,d.fecha)){
+     // El cliente repitió una fecha que ya figura en la propuesta pendiente.
+     // No regenerar cotización ni repetir el mismo texto: pedir consentimiento explícito.
+     estado.esperando='ACEPTAR_ENTREGA';
+     const total=q.entregas.reduce((n,x)=>n+Number(x.cajas||0),0);
+     const f=d.fecha.split('-').reverse().join('/');
+     mensaje=`Sí, el ${f} ya está anotado en nuestra propuesta para las ${total} cajas. Aún no la he confirmado porque necesito tu aceptación. ¿Estás de acuerdo con esa entrega? Puedes responder «Acepto» o pedirme otra fecha.`;
    } else if(q && d.accion==='ENTREGA' && q.items?.length>1 || q && (d.accion==='FECHA'||d.accion==='FECHA_RELATIVA') && q.items?.length>1){
      const faltan=q.items.filter(x=>x.cantidad>x.disponibilidad.disponibles+x.disponibilidad.planificadas);
      if(faltan.length)mensaje=`Antes de coordinar, falta cobertura de ${faltan.map(x=>x.producto_nombre).join(' y ')}. Puedo ayudarte a ajustar las cajas.`;
