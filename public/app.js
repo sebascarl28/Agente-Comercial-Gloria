@@ -78,6 +78,7 @@ function render(){menu();if(!app.datos)return;
 function barCliente(){const c=app.datos.cliente?.cliente;return `<div class="client-bar card"><strong>Cliente:</strong><select id="selectCliente" aria-label="Seleccionar cliente">${app.datos.clientes.map(x=>`<option value="${esc(x.id_cliente)}" ${x.id_cliente===app.clienteId?'selected':''}>${esc(x.razon_social)}</option>`).join('')}</select>${c?`<div class="credit">${Number(c.linea_credito)>0?badge('✓ Crédito aprobado','success'):badge('Sin crédito aprobado','warn')}<small>Línea: ${money(c.linea_credito)} &nbsp; | &nbsp; Plazo: ${c.plazo_credito_dias||0} días</small></div>`:''}</div>`;}
 function welcome(){return [{rol:'agente',texto:`¡Hola! Soy el Agente Comercial Gloria 👋\nYa tengo registrada a ${nombreCliente()}.\n¿En qué puedo ayudarte hoy?`,fecha:new Date().toISOString()}];}
 function sugerenciasDelMomento(q){
+  if(q?.estado==='CONFIRMADA')return [['Nueva cotización','Quiero otra cotización'],['Ver pedido','¿Cómo va mi pedido?']];
   const ultimo=[...app.mensajes].reverse().find(m=>m.rol==='agente'&&m.estado_chat);
   const estado=ultimo?.estado_chat||{};
   const espera=estado.esperando;
@@ -220,7 +221,7 @@ async function sendChat(){const textarea=$('#chatMessage');const msg=textarea?.v
   }
   app.busy=true;const history=$('.chat-messages');if(history)history.insertAdjacentHTML('beforeend',`<div class="chat-row client"><div class="bubble">${esc(msg)}</div></div>`);textarea.value='';try{
   const d=await api('/api/chat',{method:'POST',body:{mensaje:msg,id_cliente:app.clienteId,id_conversacion:app.conversacionId,id_cotizacion:app.cotizacionId}});
-  app.mensajes=d.mensajes;app.ultimoMotor=d.motor;app.diagnosticoGroq=d.diagnostico_groq||null;app.conversacionId=d.id_conversacion;if(d.cotizacion?.id_cotizacion)app.cotizacionId=d.cotizacion.id_cotizacion;await cargar({silencioso:true});
+  app.mensajes=d.mensajes;app.ultimoMotor=d.motor;app.diagnosticoGroq=d.diagnostico_groq||null;app.conversacionId=d.id_conversacion;app.cotizacionId=d.cotizacion?.id_cotizacion||null;await cargar({silencioso:true});
  }catch(err){toast(err.message,true);app.mensajes.push({rol:'cliente',texto:msg,fecha:new Date().toISOString()});render();}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}
 }
 async function run(fn){if(app.busy)return;app.busy=true;try{await fn();}catch(err){toast(err.message,true);}finally{app.busy=false;$('#chatForm button[type="submit"]')?.removeAttribute('disabled');}}
