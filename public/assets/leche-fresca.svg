@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 240" role="img" aria-label="Ilustración académica de LECHE Gloria">
+ <defs><linearGradient id="cart" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#dfeafe"/></linearGradient><filter id="sh"><feGaussianBlur stdDeviation="7"/></filter></defs>
+ <ellipse cx="143" cy="216" rx="63" ry="8" fill="#799bd0" opacity=".24" filter="url(#sh)"/>
+ <path d="M78 49L112 26H187L207 49V210H78Z" fill="url(#cart)" stroke="#c8d6ec" stroke-width="2"/>
+ <path d="M112 26L126 48H207L187 26Z" fill="#f3f7fc" stroke="#c9d7e9"/>
+ <path d="M78 49H207V210H78Z" fill="#fff"/>
+ <path d="M78 147Q143 126 207 145V210H78Z" fill="#2893d0"/>
+ <path d="M78 177Q144 154 207 174V193Q145 166 78 198Z" fill="#b8defc" opacity=".8"/>
+ <text x="143" y="86" font-size="29" font-family="Georgia,serif" font-weight="900" text-anchor="middle" fill="#123064">GLORIA</text>
+ <circle cx="143" cy="108" r="13" fill="#c4203a"/><text x="143" y="114" font-size="17" text-anchor="middle" fill="#fff">✿</text>
+ <text x="143" y="138" font-size="13" font-family="sans-serif" font-weight="bold" text-anchor="middle" fill="#174078">LECHE</text>
+ <text x="143" y="189" font-size="15" font-family="sans-serif" font-weight="bold" text-anchor="middle" fill="white">FRESCA</text>
+ <text x="143" y="204" font-size="10" font-family="sans-serif" text-anchor="middle" fill="white">IMAGEN ILUSTRATIVA</text>
+ </svg>

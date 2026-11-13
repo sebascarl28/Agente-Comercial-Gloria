@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Agente Comercial Gloria · Demo PC3</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/logo-bot.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">GLORIA<span class="rose">✿</span></div><span class="brand-divider"></span><img class="bot-mark" src="/assets/logo-bot.svg" alt=""/><div><strong>Agente Comercial Gloria</strong><small>Asesor comercial con IA · PC3</small></div></div>
+    <nav class="top-tabs" aria-label="Áreas"><button type="button" class="top-tab selected" data-top="chat">◉ Asesor Comercial</button><button type="button" class="top-tab" data-top="finanzas">▤ Finanzas</button><button type="button" class="top-tab" data-top="jefatura">♙ Jefatura Comercial</button></nav>
+    <div class="top-meta"><span id="dateBadge">—</span><span class="user-badge">Demo UNI</span></div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Navegación">
+      <button class="side-link active" data-view="chat">⌑ <span>Atención de Clientes</span></button>
+      <button class="side-link" data-view="clientes">♧ <span>Clientes</span></button>
+      <button class="side-link" data-view="productos">▣ <span>Productos</span></button>
+      <button class="side-link" data-view="cotizaciones">▤ <span>Cotizaciones</span></button>
+      <button class="side-link" data-view="pedidos">▧ <span>Pedidos</span></button>
+      <button class="side-link" data-view="stock">◫ <span>Stock y lotes</span></button>
+      <button class="side-link" data-view="produccion">▥ <span>Plan de producción</span></button>
+      <div class="sidebar-rule"></div>
+      <button class="side-link" data-view="finanzas">▤ <span>Finanzas</span></button>
+      <button class="side-link" data-view="jefatura">♙ <span>Jefatura Comercial</span></button>
+      <div class="sidebar-spacer"></div>
+      <div class="side-footer"><span class="milk-emoji">🥛</span><strong>GLORIA</strong><small>Demo académica · datos ficticios</small></div>
+    </aside>
+    <main id="workspace" class="workspace" aria-live="polite"><div class="loader"><div class="spin"></div><p>Conectando con el agente...</p></div></main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="modal" class="modal"><div id="modalInner"></div></dialog>
+  <footer class="tiny-footer">Simulación académica. Las fechas de producción no equivalen a entregas confirmadas.</footer>
+</body>
+</html>

@@ -1,0 +1,16 @@
+import {respuesta,errorJson,revisarAcceso,revisarRol,metodo,falla} from '../lib/http.js';
+import {listarAprobaciones,decidirCredito,decidirDescuento} from '../lib/service.js';
+export default async function handler(req,res){
+  try{
+    metodo(req,['GET','POST']);revisarAcceso(req);
+    const rol=req.method==='GET'?req.query?.rol:req.body?.rol;
+    if(!['finanzas','jefatura'].includes(rol))falla('Selecciona Finanzas o Jefatura.');
+    revisarRol(req,rol);
+    if(req.method==='GET')return respuesta(res,200,{ok:true,solicitudes:await listarAprobaciones(rol)});
+    const x=req.body||{};
+    const resultado=rol==='finanzas'?
+      await decidirCredito(x.id_solicitud,x.decision,x.monto,x.plazo_dias,x.comentario):
+      await decidirDescuento(x.id_solicitud,x.decision,x.porcentaje,x.comentario);
+    respuesta(res,200,{ok:true,resultado});
+  }catch(err){errorJson(res,err);}
+}
