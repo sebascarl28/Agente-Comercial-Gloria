@@ -6,7 +6,7 @@ import {interpretar} from '../lib/ai.js';
 import {avanzarSeleccion} from '../lib/seleccion-productos.js';
 import {interpretarCambio} from '../lib/cambios-conversacion.js';
 import {pideOrientacion,recomendacionProducto,quierePedirLeche} from '../lib/orientacion.js';
-import {atenderFechaRelativa,aclararFechaCantidad} from '../lib/fechas-conversacion.js';
+import {atenderFechaRelativa,aclararFechaCantidad,preguntaFechaDisponible,responderFechaDisponible} from '../lib/fechas-conversacion.js';
 import {interpretarPedidoNuevo,hayLineaNoReconocida} from '../lib/interpretacion-pedido.js';
 import {pidePrecio,preferenciasPrecio,respuestaPrecios,respuestaTotalCotizacion} from '../lib/precios-conversacion.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
@@ -121,15 +121,16 @@ async function atender(req,res){
   const d=leerTurno(texto,{estado,cotizacion:q,interpretacion});
   const productoDicho=productoExplicito(texto);
   const solicitaPC3=esEscenarioPC3() && /\b(?:caso\s+pc3|caso\s+del\s+informe|escenario\s+pc3)\b/.test(d.textoNormalizado) && /\b(?:quiero|prepara|preparar|inicia|iniciar|simula|simular|hagamos|hacer|probar)\b/.test(d.textoNormalizado);
+  const consultaFecha=!!q && preguntaFechaDisponible(texto);
   const precios=pidePrecio(texto)||(interpretacion.motor==='groq'&&interpretacion.accion==='precio'&&/\b(?:cuant\w*|val\w*|cost\w*|prec\w*|importe|soles|monto|pag\w*)\b/.test(d.textoNormalizado));
   const orientacion=!precios && pideOrientacion(texto);
   const propuestaPedido=(precios||orientacion||solicitaPC3)?null:interpretarPedidoNuevo(texto,estado,q,interpretacion);
   const pideLeche=!precios && !propuestaPedido && !q && !productoDicho && !d.cantidad && quierePedirLeche(texto);
   const fechaRelativa=!!q && q.estado!=='CONFIRMADA' && d.accion==='FECHA_RELATIVA';
   const aclaracionFecha=q?aclararFechaCantidad(texto,estado,q):null;
-  const cambio=(precios||propuestaPedido||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:interpretarCambio(texto,estado,q,interpretacion);
+  const cambio=(consultaFecha||precios||propuestaPedido||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:interpretarCambio(texto,estado,q,interpretacion);
   const pedidoInseguro=!precios && !cambio && !!q && !d.modo && !d.fecha && !fechaRelativa && !esConsultaStock(texto) && !esPreguntaFaltanteEntrega(texto) && hayLineaNoReconocida(texto);
-  const seleccion=(precios||propuestaPedido||pedidoInseguro||cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:avanzarSeleccion(texto,estado,q);
+  const seleccion=(consultaFecha||precios||propuestaPedido||pedidoInseguro||cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:avanzarSeleccion(texto,estado,q,interpretacion);
   if(productoDicho && !q && !precios && !propuestaPedido)estado.producto=productoDicho;
   let mensaje='',observacion='Reglas ERP/CRM verificadas';
   const mayorDeUno=ctx=>ctx.cantidad_pendiente&&ctx.cantidad_pendiente>0;
@@ -166,7 +167,7 @@ async function atender(req,res){
      const reparto=await proponerEntrega(q.id_cotizacion,{modo:'DOS_PARTES'});
      q=reparto.cotizacion;
      estado.producto='PRD-002';estado.esperando='ACEPTAR_ENTREGA';
-     mensaje='Listo, revisé tu pedido de 360 cajas: 180 de UHT, 60 de evaporada de 400 g y 120 de fresca. Para el 16/11 tenemos cobertura para 340. Las otras 20 son de evaporada y están previstas desde el 17/11 según OP-EVA-1711, sujetas a Calidad y logística. La cerradora tuvo una parada de dos horas el 13/11, que afectó la capacidad. ¿Te parece recibir 340 cajas el 16 y las 20 restantes el 17?';
+     mensaje='Preparé el caso sintético SOL-LA-002: 360 cajas (180 de UHT, 60 de evaporada de 400 g y 120 de fresca). Para el 16/11 tenemos cobertura para 340. Las otras 20 son de evaporada y están previstas desde el 17/11 según OP-EVA-1711, sujetas a Calidad y logística. La cerradora tuvo una parada de dos horas el 13/11, que afectó la capacidad. ¿Te parece recibir 340 cajas el 16 y las 20 restantes el 17?';
    } else if(q?.entregas?.length && !q.entrega_aceptada && mencionaRepartoConAceptacion(texto)){
      if(aceptaRepartoPropuesto(texto,q.entregas)){
        const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;
@@ -175,6 +176,9 @@ async function atender(req,res){
        estado.esperando='ACEPTAR_ENTREGA';
        mensaje=`Antes de registrar tu aceptación, necesito confirmar las cantidades y fechas exactas: ${q.entregas.map(x=>`${x.cajas} cajas de ${nombres[x.id_producto]||'leche'} para el ${fecha(x.fecha)}`).join('; ')}. ¿Aceptas este esquema o prefieres modificarlo?`;
      }
+   } else if(consultaFecha){
+     if(q.entregas?.length)mensaje=estadoComercial({q,contexto,tema:'entrega'});
+     else mensaje=responderFechaDisponible(q,estado);
    } else if(q && q.estado!=='CONFIRMADA' && q.items?.length && esConsultaStock(texto) && !esTodoStock(texto)){
      // "Stock para este pedido de 360 cajas" describe la cotización entera.
      // El número NO es una nueva cantidad de leche evaporada.
@@ -197,8 +201,9 @@ async function atender(req,res){
    } else if(aclaracionFecha){
      mensaje=aclaracionFecha;
    } else if(fechaRelativa){
-     // Pedir un día concreto sin modificar cantidades ni crear entregas.
-     mensaje=atenderFechaRelativa(d,estado,q);
+     // Si pide prontitud, dar una referencia sustentada, sin reservar ni prometer.
+     if(d.periodo==='cuanto_antes' && !q.entregas?.length && (!d.cantidad||Number(d.cantidad)===Number(q.cantidad)))mensaje=responderFechaDisponible(q,estado);
+     else mensaje=atenderFechaRelativa(d,estado,q);
    } else if(orientacion){
      // No se cambia el pedido; si hay varias líneas, preguntar antes de elegir una.
      const prod=productoDicho||((q?.items?.length||0)>1?null:(estado.producto||q?.id_producto));
@@ -358,6 +363,10 @@ async function atender(req,res){
      estado.direccion_borrador=null;estado.esperando='PEDIR_DIRECCION';mensaje='Entendido, no registraré esa dirección. ¿Cuál es la calle, número y distrito correctos?';
    } else if(estado.esperando==='DESCUENTO_OPCIONAL' && (d.accion==='NO'||d.accion==='SIN_DESCUENTO')){
      estado.descuento_consultado=true;mensaje=`Sin problema, mantendremos el descuento actual de ${q?.descuento_pct||0}%. ${siguienteNatural(q,estado)}`;
+   } else if(estado.esperando==='PEDIR_FECHA_EXACTA' && q && !q.entregas?.length && esConfirmacionCorta(texto) &&
+      estado.fecha_referencia?.fecha && Number(estado.fecha_referencia.version)===Number(q.version) && /quieres que revise esa fecha/i.test(ultimoAgente)){
+     const r=await proponerEntrega(q.id_cotizacion,{modo:'TODO_DESPUES',fecha:estado.fecha_referencia.fecha});
+     q=r.cotizacion;estado.esperando='ACEPTAR_ENTREGA';delete estado.fecha_referencia;mensaje=r.mensaje;
    } else if(estado.esperando==='ELEGIR_ENTREGA' && q && d.accion==='SI'){
      const s=cobertura(q);mensaje=`Para registrar una propuesta, ¿prefieres ${s.inmediato} cajas primero y ${s.futuro} después de producción, o todas las ${q.cantidad} juntas desde el ${s.fecha2}?`;
    } else if(estado.esperando==='ELEGIR_FECHA' && q && d.accion==='SI' && esConfirmacionCorta(texto) && cobertura(q).faltante===0){
@@ -415,7 +424,7 @@ async function atender(req,res){
    } else if(d.accion==='CONSULTAR'){
      const tema=d.consulta||interpretacion.tema_consulta||'general';
      mensaje=estadoComercial({q,contexto,tema});
-     if(tema==='descuento' && pendientesDescuento(q)?.estado==='OFERTADO')estado.esperando='ACEPTAR_DESCUENTO';
+     if(pendientesDescuento(q)?.estado==='OFERTADO' && (tema==='descuento'||tema==='general'))estado.esperando='ACEPTAR_DESCUENTO';
    } else if(d.accion==='CATALOGO'){
      mensaje='Tenemos leche UHT entera 1 L, evaporada 400 g y fresca 1 L. También puedo consultar stock y precios sin que tengas que crear un pedido. ¿Cuál te interesa?';
    } else if(d.accion==='ENTREGA' || d.accion==='FECHA' || d.accion==='FECHA_RELATIVA'){
