@@ -115,7 +115,7 @@ async function atender(req,res){
      const reparto=await proponerEntrega(q.id_cotizacion,{modo:'DOS_PARTES'});
      q=reparto.cotizacion;
      estado.producto='PRD-002';estado.esperando='ACEPTAR_ENTREGA';
-     mensaje='Preparé el caso sintético SOL-LA-002: 180 cajas UHT, 60 de evaporada de 400 g y 120 de fresca (360 en total). Para el 16/11/2026 hay 340 cajas cubiertas y faltan 20 de evaporada. Planeamiento prevé 20 para el 17/11 (OP-EVA-1711) tras la parada de 2 h de la cerradora el 13/11. '+reparto.mensaje;
+     mensaje='Listo, revisé tu pedido de 360 cajas: 180 de UHT, 60 de evaporada de 400 g y 120 de fresca. Para el 16/11 tenemos cobertura para 340. Las otras 20 son de evaporada y están previstas desde el 17/11 según OP-EVA-1711, sujetas a Calidad y logística. La cerradora tuvo una parada de dos horas el 13/11, que afectó la capacidad. ¿Te parece recibir 340 cajas el 16 y las 20 restantes el 17?';
    } else if(q?.entregas?.length && !q.entrega_aceptada && mencionaRepartoConAceptacion(texto)){
      if(aceptaRepartoPropuesto(texto,q.entregas)){
        const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;
