@@ -79,9 +79,9 @@ test('Backend conserva separación por sesión y no exige SQL nuevo', async()=>{
 test('El servicio permite entregas parciales voluntarias aun con stock suficiente', async()=>{
   const {readFileSync}=await import('node:fs');
   const code=readFileSync(new URL('../lib/service.js',import.meta.url),'utf8');
-  assert.match(code,/Entrega parcial voluntaria/);
-  assert.match(code,/Math\.ceil\(q\.cantidad\/2\)/);
-  assert.match(code,/sumarDias\(s\.fecha1,3\)/);
+  assert.match(code,/proponerEntrega/);
+  assert.match(code,/Math\.ceil\(item\.cantidad\/2\)/);
+  assert.match(code,/sumarDias\(hoy,4\)/);
 });
 
 test('No ofrece 100 cajas previstas el primer día si hay dos planes de 50 en fechas distintas',async()=>{

@@ -1,8 +1,11 @@
 import { enSimulacion } from '../lib/db.js';
 import { respuesta,errorJson,revisarAcceso,metodo,falla } from '../lib/http.js';
-import {crearCotizacion,modificarCotizacion,solicitarDescuento,clienteRespondeDescuento,crearCliente,solicitarCredito,clienteRespondeCredito,proponerEntrega,aceptarEntrega,confirmarDireccion,definirPago,confirmarPedido,detalleCotizacion} from '../lib/service.js';
+import {crearCotizacion,modificarCotizacion,solicitarDescuento,clienteRespondeDescuento,crearCliente,solicitarCredito,clienteRespondeCredito,proponerEntrega,aceptarEntrega,confirmarDireccion,definirPago,confirmarPedido,detalleCotizacion,cambiarLinea} from '../lib/service.js';
 const acciones={
   crear_cotizacion:x=>crearCotizacion(x.id_cliente,x.id_producto,x.cantidad),
+  agregar_producto:x=>cambiarLinea(x.id_cotizacion,x.id_producto,x.cantidad,{modo:'AGREGAR'}),
+  actualizar_producto:x=>cambiarLinea(x.id_cotizacion,x.id_producto,x.cantidad,{modo:'FIJAR'}),
+  quitar_producto:x=>cambiarLinea(x.id_cotizacion,x.id_producto,1,{modo:'QUITAR'}),
   modificar_cotizacion:x=>modificarCotizacion(x.id_cotizacion,x.cambios),
   solicitar_descuento:x=>solicitarDescuento(x.id_cotizacion,x.porcentaje),
   responder_descuento:x=>clienteRespondeDescuento(x.id_solicitud,!!x.aceptar),

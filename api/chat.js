@@ -2,8 +2,8 @@ import {randomUUID} from 'node:crypto';
 import {enSimulacion,consulta,uno} from '../lib/db.js';
 import {respuesta,errorJson,revisarAcceso,metodo,falla,obligatorio} from '../lib/http.js';
 import {interpretar} from '../lib/ai.js';
-import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion} from '../lib/dialogo.js';
-import {contextoCliente,crearCotizacion,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad} from '../lib/service.js';
+import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
+import {contextoCliente,crearCotizacion,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea} from '../lib/service.js';
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura} from '../lib/rules.js';
 import {siguientePaso,estadoComercial,pendientesDescuento,resumenHabilitado,firmaCondiciones,confirmacionVigente,creditoInsuficiente} from '../lib/negociacion.js';
 
@@ -20,7 +20,16 @@ function cobertura(q){
   const d=q.disponibilidad;const faltante=Math.max(0,q.cantidad-d.disponibles);
   return repartoSugerido(q.cantidad,d.disponibles,d.planificadas,fechaCobertura(d.planes,Math.min(faltante,d.planificadas)));
 }
+function resumenLineas(q){return (q?.items||[]).map(x=>`${x.cantidad} cajas de ${x.producto_nombre}`).join(' y ');}
 function propuesta(q,estado){
+  if(q?.items?.length>1){
+    const faltan=q.items.map(x=>({nombre:x.producto_nombre,cajas:x.cantidad,
+      sinCobertura:Math.max(0,x.cantidad-x.disponibilidad.disponibles-x.disponibilidad.planificadas)}))
+      .filter(x=>x.sinCobertura>0);
+    estado.esperando=faltan.length?'REVISAR_COBERTURA_MULTI':'ELEGIR_FECHA';
+    if(faltan.length)return `Llevamos ${resumenLineas(q)}. Antes de cerrar, falta cobertura para ${faltan.map(x=>`${x.sinCobertura} cajas de ${x.nombre}`).join(' y ')}. ¿Deseas ajustar ese producto o que consulte Planeamiento?`;
+    return `Perfecto, llevamos ${resumenLineas(q)} en una sola cotización. ¿Para cuándo necesitas recibirlas? También podemos distribuir las entregas por producto.`;
+  }
   const s=cobertura(q);estado.cantidad_pendiente=null;
   if(s.sin_cobertura>0){
     estado.esperando='REDUCIR_CANTIDAD';estado.cantidad_ofrecida=s.inmediato+s.futuro;
@@ -31,7 +40,7 @@ function propuesta(q,estado){
     return `Anoté ${q.cantidad} cajas de ${q.producto_nombre}. Tenemos ${s.inmediato} cajas liberadas y otras ${s.futuro} previstas desde el ${s.fecha2}, sujetas a Calidad. Te propongo ${s.inmediato} cajas desde el ${s.fecha1} (previa validación logística) y las otras ${s.futuro} desde el ${s.fecha2}; o las ${q.cantidad} juntas desde el ${s.fecha2}. ¿Prefieres entrega parcial o completa?`;
   }
   estado.esperando='ELEGIR_FECHA';
-  return `Perfecto, ${q.cantidad} cajas de ${q.producto_nombre}. Hay stock liberado suficiente (${q.disponibilidad.disponibles} cajas). Podemos evaluar la entrega desde el ${sumarDias(fechaLimaHoy(),1)}, sujeto a logística. ¿Te sirve esa fecha o prefieres otra?`;
+  return `Perfecto, anoté ${q.cantidad} cajas de ${q.producto_nombre}. ¿Para qué fecha las necesitas? Si quieres, podemos añadir otro tipo de leche a esta misma cotización.`;
 }
 function siguienteNatural(q,estado){
   if(!q) return '¿Qué tipo de leche y cuántas cajas necesitas?';
@@ -39,7 +48,7 @@ function siguienteNatural(q,estado){
   const aprobacion=pendientesDescuento(q);
   if(aprobacion){estado.esperando=aprobacion.estado==='OFERTADO'?'ACEPTAR_DESCUENTO':'ESPERAR_JEFATURA';return siguientePaso(q);}
   if(!q.entregas?.length){estado.esperando='ELEGIR_ENTREGA';return propuesta(q,estado);}
-  if(!q.entrega_aceptada){estado.esperando='ACEPTAR_ENTREGA';return `La entrega propuesta es ${q.entregas.map(x=>`${x.cajas} cajas el ${fecha(x.fecha)}`).join(' y ')}; quedará sujeta a validación logística y, si hay producción, a Calidad. ¿Aceptas estas fechas?`;}
+  if(!q.entrega_aceptada){estado.esperando='ACEPTAR_ENTREGA';return `La entrega propuesta es ${q.entregas.map(x=>`${x.cajas} cajas de ${nombres[x.id_producto]||'leche'} el ${fecha(x.fecha)}`).join(' y ')}; quedará sujeta a validación logística y, si hay producción, a Calidad. ¿Aceptas estas fechas?`;}
   if(q.forma_pago==='SIN_DEFINIR'){estado.esperando='ELEGIR_PAGO';return '¿Prefieres pagar al contado, usar el crédito aprobado o un anticipo del 40% (opción académica)?';}
   if(!estado.descuento_consultado&&!q.aprobaciones?.length){estado.esperando='DESCUENTO_OPCIONAL';return '¿Deseas solicitar un descuento antes de cerrar la cotización? Puedes decirme un porcentaje o responder «sin descuento». Si solicitas más del 5%, Jefatura lo evalúa.';}
   if(!q.direccion_confirmada){
@@ -77,7 +86,7 @@ async function atender(req,res){
   const interpretacion=await interpretar(texto,{
    cliente:contexto.cliente.razon_social,credito:contexto.cliente.linea_credito,fecha_hoy:estado.hoy,
    estado_negociacion:{producto:estado.producto,esperando:estado.esperando,cantidad_pendiente:estado.cantidad_pendiente,fecha_deseada:estado.fecha_deseada},
-   cotizacion:q?{producto:q.producto_nombre,cantidad:q.cantidad,descuento:q.descuento_pct,estado:q.estado,entrega_aceptada:q.entrega_aceptada,pago:q.forma_pago,entregas:q.entregas}:null,
+   cotizacion:q?{producto:q.producto_nombre,items:q.items?.map(x=>({id:x.id_producto,nombre:x.producto_nombre,cajas:x.cantidad})),cantidad:q.cantidad,descuento:q.descuento_pct,estado:q.estado,entrega_aceptada:q.entrega_aceptada,pago:q.forma_pago,entregas:q.entregas}:null,
    historial:Array.isArray(sesion.mensajes)?sesion.mensajes:[]
   });
   const d=leerTurno(texto,{estado,cotizacion:q,interpretacion});
@@ -95,7 +104,95 @@ async function atender(req,res){
   try{
    // Una aceptación se interpreta respecto a la pregunta pendiente. Si hay falta de
    // cobertura, nunca se convierte un «sí» genérico en pedido confirmado.
-   if(q && pendientesDescuento(q)?.estado==='OFERTADO' && esAceptacionDescuento(texto)){
+   if(estado.esperando==='CONFIRMAR_TIPO_LECHE' && esConfirmacionCorta(texto)){
+     estado.producto=estado.producto_pendiente;estado.producto_pendiente=null;
+     estado.esperando=estado.agregando_producto?'CANTIDAD_ADICIONAL':'PEDIR_CANTIDAD';
+     if(estado.cantidad_pendiente){const qty=estado.cantidad_pendiente;estado.cantidad_pendiente=null;
+       q=q?await cambiarLinea(q.id_cotizacion,estado.producto,qty,{modo:'AGREGAR'}):await nuevaCotizacion(estado.producto,qty);
+       estado.agregando_producto=false;mensaje=`Perfecto. Registré ${qty} cajas de ${nombres[estado.producto]}. ${propuesta(q,estado)}`;
+     }else mensaje=`¡Perfecto, ${nombres[estado.producto]}! ¿Cuántas cajas deseas ${estado.agregando_producto?'agregar':'cotizar'}?`;
+   } else if(d.accion==='ACLARAR_FECHA'){
+     estado.esperando='ACLARAR_FECHA';
+     mensaje='¿Te refieres a la fecha de vencimiento del lote o a cuándo podríamos entregarte el producto? Así te doy el dato correcto.';
+   } else if(d.accion==='VENCIMIENTO'){
+     const prod=productoDicho||estado.producto||q?.id_producto;
+     if(!prod)mensaje='¿De qué leche quieres saber el vencimiento: UHT, evaporada o fresca?';
+     else{
+       const st=await disponibilidad(prod);
+       const lotes=(st.lotes||[]).filter(x=>Number(x.libres)>0).sort((a,b)=>String(a.fecha_vencimiento).localeCompare(String(b.fecha_vencimiento)));
+       mensaje=lotes.length?`Los lotes liberados de ${nombres[prod]} que tenemos disponibles vencen entre el ${fecha(lotes[0].fecha_vencimiento)} y el ${fecha(lotes.at(-1).fecha_vencimiento)}. La fecha exacta depende del lote que se asigne; ¿quieres saber de la entrega?`:`Ahora mismo no encuentro lotes liberados de ${nombres[prod]} con existencias. Puedo consultar el plan de producción.`;
+     }
+   } else if(estado.esperando==='ELEGIR_CAMBIO_LINEA'&&q&&/\b(?:sumar|agregar|anadir|anade)\b/.test(d.textoNormalizado)){
+     q=await cambiarLinea(q.id_cotizacion,estado.producto_cambio,estado.cantidad_cambio,{modo:'AGREGAR'});
+     mensaje=`Sumé esas cajas. Ahora llevamos ${resumenLineas(q)}. ¿Coordinamos entrega?`;
+     estado.producto=estado.producto_cambio;estado.producto_cambio=null;estado.cantidad_cambio=null;estado.esperando='AGREGAR_MAS';
+   } else if(estado.esperando==='ELEGIR_CAMBIO_LINEA'&&q&&/\b(?:cambiar|modificar|reemplazar|dejar|ajustar)\b/.test(d.textoNormalizado)){
+     q=await cambiarLinea(q.id_cotizacion,estado.producto_cambio,estado.cantidad_cambio,{modo:'FIJAR'});
+     mensaje=`Actualicé el producto. Ahora llevamos ${resumenLineas(q)}. ¿Coordinamos entrega?`;
+     estado.producto=estado.producto_cambio;estado.producto_cambio=null;estado.cantidad_cambio=null;estado.esperando='AGREGAR_MAS';
+   } else if(d.accion==='AGREGAR_PRODUCTO'){
+     estado.agregando_producto=true;
+     if(q && productoDicho && d.cantidad){
+       q=await cambiarLinea(q.id_cotizacion,productoDicho,d.cantidad,{modo:'AGREGAR'});
+       estado.producto=productoDicho;estado.agregando_producto=false;estado.esperando='AGREGAR_MAS';
+       mensaje=`Añadí ${d.cantidad} cajas de ${nombres[productoDicho]}. En total llevamos ${resumenLineas(q)}. ¿Seguimos añadiendo o coordinamos la entrega?`;
+     }else if(productoDicho){
+       estado.producto=productoDicho;estado.esperando='CANTIDAD_ADICIONAL';
+       mensaje=`Perfecto, ¿cuántas cajas de ${nombres[productoDicho]} deseas añadir?`;
+     }else{
+       estado.esperando='AGREGAR_PRODUCTO';
+       mensaje=q?`¡Por supuesto! Conservamos ${resumenLineas(q)}. ¿Qué otra leche quieres añadir: UHT, evaporada o fresca?`:'¡Claro! Podemos cotizar UHT, evaporada y fresca. ¿Cuál deseas primero?';
+     }
+   } else if(d.accion==='QUITAR_PRODUCTO'){
+     const prod=productoDicho||estado.producto;
+     if(!q)mensaje='Aún no tenemos productos en una cotización. ¿Cuál deseas primero?';
+     else if(!productoDicho)mensaje=`¿Qué producto deseas quitar? Ahora llevamos ${resumenLineas(q)}.`;
+     else if(q.items?.length===1)mensaje='No puedo dejar la cotización sin productos; puedes iniciar otra simulación.';
+     else{
+       q=await cambiarLinea(q.id_cotizacion,prod,1,{modo:'QUITAR'});
+       estado.producto=q.id_producto;estado.agregando_producto=false;
+       mensaje=`Quité ${nombres[prod]} de la cotización. Quedan ${resumenLineas(q)}. ¿Quieres añadir algo más o acordamos la entrega?`;
+     }
+   } else if(d.nombreCorregido && productoDicho && d.accion!=='CONSULTAR'){
+     if(q && productoDicho!==q.id_producto)estado.agregando_producto=true;
+     estado.producto_pendiente=productoDicho;estado.cantidad_pendiente=d.cantidad;
+     estado.esperando='CONFIRMAR_TIPO_LECHE';
+     mensaje=`¿Te refieres a ${nombres[productoDicho]}? Si es así, la agregamos correctamente a la cotización.`;
+   } else if(estado.esperando==='CONFIRMAR_TIPO_LECHE' && d.accion==='NO'){
+     estado.producto_pendiente=null;estado.esperando='AGREGAR_PRODUCTO';
+     mensaje='Entendido. ¿Querías UHT, evaporada o fresca?';
+   } else if(q && d.accion==='CANTIDAD' && (estado.agregando_producto||estado.esperando==='CANTIDAD_ADICIONAL')){
+     const prod=productoDicho||estado.producto;
+     if(!prod){estado.esperando='AGREGAR_PRODUCTO';mensaje='¿De qué tipo de leche deseas añadir cajas?';}
+     else{
+       q=await cambiarLinea(q.id_cotizacion,prod,d.cantidad||interpretacion.cantidad,{modo:'AGREGAR'});
+       estado.producto=prod;estado.agregando_producto=false;estado.esperando='AGREGAR_MAS';
+       mensaje=`Añadí las ${d.cantidad||interpretacion.cantidad} cajas de ${nombres[prod]} sin quitar las anteriores. Ahora llevamos ${resumenLineas(q)}. ¿Quieres agregar otra leche o coordinamos la entrega?`;
+     }
+   } else if(q && d.accion==='PRODUCTO' && estado.agregando_producto){
+     estado.producto=productoDicho||d.producto;estado.esperando='CANTIDAD_ADICIONAL';
+     mensaje=`Perfecto, ${nombres[estado.producto]}. ¿Cuántas cajas quieres añadir?`;
+   } else if(q && d.accion==='CANTIDAD' && productoDicho && productoDicho!==q.id_producto && !q.items?.some(x=>x.id_producto===productoDicho)){
+     // Es preferible añadir una línea a sustituir silenciosamente la primera.
+     q=await cambiarLinea(q.id_cotizacion,productoDicho,d.cantidad||interpretacion.cantidad,{modo:'AGREGAR'});
+     estado.producto=productoDicho;estado.esperando='AGREGAR_MAS';
+     mensaje=`Agregué ${d.cantidad||interpretacion.cantidad} cajas de ${nombres[productoDicho]}. Conservé los otros productos: ${resumenLineas(q)}. ¿Añadimos otra leche o vemos la entrega?`;
+   } else if(q && d.accion==='CANTIDAD' && q.items?.length>1){
+     const prod=productoDicho||estado.producto;
+     if(!prod)mensaje=`Llevamos ${resumenLineas(q)}. ¿Cuál deseas modificar?`;
+     else if(/\b(?:cambia|cambiar|modifica|modificar|dejemos|ajusta)\b/.test(d.textoNormalizado)){
+       q=await cambiarLinea(q.id_cotizacion,prod,d.cantidad||interpretacion.cantidad,{modo:'FIJAR'});
+       mensaje=`Actualicé las cajas de ${nombres[prod]}. Ahora llevamos ${resumenLineas(q)}. ¿Seguimos con las entregas?`;
+     }else {estado.esperando='ELEGIR_CAMBIO_LINEA';estado.producto_cambio=prod;estado.cantidad_cambio=d.cantidad||interpretacion.cantidad;mensaje=`Ya tenemos ${resumenLineas(q)}. ¿Deseas sumar ${d.cantidad} cajas de ${nombres[prod]} o cambiar su cantidad a ${d.cantidad}?`;}
+   } else if(q && d.accion==='ENTREGA' && q.items?.length>1 || q && (d.accion==='FECHA'||d.accion==='FECHA_RELATIVA') && q.items?.length>1){
+     const faltan=q.items.filter(x=>x.cantidad>x.disponibilidad.disponibles+x.disponibilidad.planificadas);
+     if(faltan.length)mensaje=`Antes de coordinar, falta cobertura de ${faltan.map(x=>x.producto_nombre).join(' y ')}. Puedo ayudarte a ajustar las cajas.`;
+     else if(d.fecha||d.modo){
+       const modo=d.modo==='DOS_PARTES'?'DOS_PARTES':'TODO_DESPUES';
+       const r=await proponerEntrega(q.id_cotizacion,{modo,fecha:d.fecha||undefined});q=r.cotizacion;
+       estado.esperando='ACEPTAR_ENTREGA';mensaje=r.mensaje;
+     }else{estado.esperando='ELEGIR_FECHA';mensaje=`Para ${resumenLineas(q)}, ¿qué fecha prefieres? Puedes recibir todo junto o por partes.`;}
+   } else if(q && pendientesDescuento(q)?.estado==='OFERTADO' && esAceptacionDescuento(texto)){
      const ap=pendientesDescuento(q);
      const r=await clienteRespondeDescuento(ap.id_solicitud,true);
      q=r.cotizacion;estado.descuento_consultado=true;
