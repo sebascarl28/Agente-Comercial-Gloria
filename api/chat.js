@@ -35,7 +35,7 @@ function resumenPedidoConversado(q){
   const total=dinero(q.calculo?.total??q.total);
   const reservadas=(q.entregas||[]).filter(x=>x.origen==='STOCK').reduce((n,x)=>n+Number(x.cajas||0),0);
   const libre=(q.items||[]).length===1?` Stock liberado restante del producto: ${q.items[0].disponibilidad.disponibles} cajas.`:'';
-  return `Resumen final · CONFIRMADA: ${cajas} cajas (${lineas}). Entregas propuestas: ${entregas}. Pago ${pagos[q.forma_pago]||q.forma_pago}, descuento ${Number(q.descuento_pct||0)} %, total ${total} incluido IGV. Se reservaron ${reservadas} cajas de lotes liberados.${libre} El despacho debe confirmarse.${(q.entregas||[]).some(x=>x.origen==='PRODUCCION')?' Las cajas de producción siguen pendientes de liberación de Calidad.':''}`;
+  return `${respuestaTotalCotizacion('total',q)||''}\nResumen final · CONFIRMADA: ${cajas} cajas (${lineas}). Entregas propuestas: ${entregas}. Pago ${pagos[q.forma_pago]||q.forma_pago}, descuento ${Number(q.descuento_pct||0)} %, total ${total} incluido IGV. Se reservaron ${reservadas} cajas de lotes liberados.${libre} El despacho debe confirmarse.${(q.entregas||[]).some(x=>x.origen==='PRODUCCION')?' Las cajas de producción siguen pendientes de liberación de Calidad.':''}`;
 }
 function cobertura(q){
   const d=q.disponibilidad;const faltante=Math.max(0,q.cantidad-d.disponibles);

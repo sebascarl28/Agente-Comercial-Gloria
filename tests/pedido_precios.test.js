@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {interpretarPedidoNuevo,hayLineaNoReconocida} from '../lib/interpretacion-pedido.js';
 import {detectarProducto} from '../lib/dialogo.js';
 import {extraerProductos} from '../lib/seleccion-productos.js';
-import {pidePrecio,preferenciasPrecio,respuestaPrecios} from '../lib/precios-conversacion.js';
+import {pidePrecio,preferenciasPrecio,respuestaPrecios,respuestaTotalCotizacion} from '../lib/precios-conversacion.js';
 import {intencionVerificableSinLLM} from '../lib/ai.js';
 const mensaje='ok si quiero pedir 50 cajas de leche evaoporada y 30 de leche fresca?';
 const pares=items=>items.map(({id,cantidad})=>({id,cantidad}));
@@ -85,4 +85,9 @@ test('Una variedad sugerida por IA se consulta en el catálogo, sin aceptar cifr
  const pref=preferenciasPrecio('¿a cuánto me saldría?',{},null,{motor:'groq',producto:'PRD-003',cantidad:100});
  assert.deepEqual(pref.ids,['PRD-003']);assert.equal(pref.cantidad,null);
  const r=respuestaPrecios(cat,pref);assert.match(r,/Fresca.*62\.00/);assert.doesNotMatch(r,/100 cajas/);
+});
+test('Cuánto sale presenta cantidades y costos por línea antes del total',()=>{
+ const q={cantidad:30,descuento_pct:0,subtotal:1780,igv:320.4,total:2100.4,items:[{producto_nombre:'Evaporada',cantidad:20,unidades_caja:24,precio_unitario:58,subtotal:1160},{producto_nombre:'Fresca',cantidad:10,unidades_caja:12,precio_unitario:62,subtotal:620}]};
+ const r=respuestaTotalCotizacion('ya cuanto sale?',q);
+ assert.match(r,/Evaporada: 20 cajas.*480 unidades.*1,160/);assert.match(r,/Fresca: 10 cajas.*120 unidades.*620/);assert.match(r,/2,100.40/);
 });

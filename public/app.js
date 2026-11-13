@@ -156,6 +156,7 @@ function summaryView(q){
   const pendientes=[];if(!q.direccion_confirmada)pendientes.push('confirmar dirección');if(q.forma_pago==='SIN_DEFINIR')pendientes.push('definir pago');if(!q.entrega_aceptada)pendientes.push('aceptar entregas');if(ap)pendientes.push('resolver descuento con Jefatura y cliente');
   const listo=!pendientes.length&&q.estado!=='CONFIRMADA';
   return `<section class="card summary"><div class="summary-header"><h2>▤ Resumen final ${q.estado==='CONFIRMADA'?'del pedido':'de la cotización'} · V${q.version}</h2>${badge(q.estado==='CONFIRMADA'?'CONFIRMADA':pendientes.length?'EN NEGOCIACIÓN':'LISTA PARA CONFIRMAR',q.estado==='CONFIRMADA'||!pendientes.length?'success':'warn')}</div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Producto</th><th>Cajas</th><th>Unidades</th><th>Precio/caja sin IGV</th><th>Importe con descuento, sin IGV</th></tr></thead><tbody>${(q.items||[]).map(x=>`<tr><td>${esc(x.producto_nombre)}</td><td>${x.cantidad}</td><td>${x.unidades_caja?Number(x.cantidad)*Number(x.unidades_caja):'—'}</td><td>${money(x.precio_unitario)}</td><td>${money(x.subtotal)}</td></tr>`).join('')}</tbody></table></div>
   <div class="summary-body">
     <div class="kv"><span class="key">Cliente</span><span class="value">${esc(q.razon_social)}</span></div>
     <div class="kv"><span class="key">Producto</span><span class="value">${esc((q.items||[]).map(x=>`${x.cantidad} cajas · ${x.producto_nombre}`).join(' / ')||q.producto_nombre)}</span></div>
@@ -166,6 +167,8 @@ function summaryView(q){
     <div class="kv"><span class="key">Descuento aplicado</span><span class="value">${q.descuento_pct}% ${ap?'(solicitud pendiente)':''}</span></div>
     <div class="kv"><span class="key">Pago</span><span class="value">${esc(q.forma_pago.replaceAll('_',' '))}</span></div>
     <div class="kv"><span class="key">Entrega</span><span class="value">${esc(deliveries)}</span></div>
+    <div class="kv"><span class="key">Subtotal sin IGV</span><span class="value">${money(q.calculo?.subtotal??q.subtotal)}</span></div>
+    <div class="kv"><span class="key">IGV (18%)</span><span class="value">${money(q.calculo?.igv??q.igv)}</span></div>
     <div class="kv"><span class="key">Total con IGV</span><span class="value">${money(q.total)}</span></div>
   </div>
   ${!q.direccion_confirmada?`<div class="notice" style="margin:0 20px 14px"><strong>Confirma la dirección de entrega:</strong><div class="chat-actions"><select id="direccionSeleccionada" aria-label="Dirección de entrega">${(app.datos.cliente?.direcciones||[]).map(dir=>`<option value="${esc(dir.id_direccion)}" ${dir.id_direccion===q.id_direccion?'selected':''}>${esc(dir.direccion+', '+dir.distrito)}</option>`).join('')}</select>${button('Confirmar dirección','data-confirmar-direccion','primary')}</div></div>`:''}

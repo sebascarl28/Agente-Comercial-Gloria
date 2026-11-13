@@ -55,3 +55,11 @@ test('Una sugerencia IA inválida o una pregunta no modifica productos',()=>{
  assert.equal(interpretarCambio('No quiero más cajas',{},q,ia),null);
  assert.equal(interpretarCambio('otra solicitud',{},q,{...ia,lineas_sugeridas:[{id:'PRD-001',cantidad:-1},{id:'PRD-003',cantidad:60}]}),null);
 });
+test('Cambiar una cantidad entre tres productos conserva las otras líneas',()=>{
+ const cot={estado:'BORRADOR',version:8,items:[{id_producto:'PRD-001',cantidad:50},{id_producto:'PRD-002',cantidad:20},{id_producto:'PRD-003',cantidad:10}]};
+ for(const [frase,n] of [['ya no quiero pedir 20 cajas de leche evaporada quiero 18 se puede modificar?',18],['aumenta evaporada a 25 cajas',25],['disminuye leche evaporada a 18',18]]){
+ const r=interpretarCambio(frase,{},cot);assert.deepEqual(r.operaciones,[{id:'PRD-002',cantidad:n}]);assert.equal(r.modo,'FIJAR');assert.equal(r.version,8);
+ }
+ assert.equal(interpretarCambio('cambia evaporada a 18',{}, {...cot,estado:'CONFIRMADA'}),null);
+ assert.match(interpretarCambio('cambia a 25 cajas',{},cot).mensaje,/qué leche/);
+});
