@@ -3,6 +3,7 @@ import {esEscenarioPC3,PRIMERA_ENTREGA_PC3,SEGUNDA_ENTREGA_PC3} from '../lib/esc
 import {enSimulacion,consulta,uno} from '../lib/db.js';
 import {respuesta,errorJson,revisarAcceso,metodo,falla,obligatorio} from '../lib/http.js';
 import {interpretar} from '../lib/ai.js';
+import {avanzarSeleccion} from '../lib/seleccion-productos.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
 import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
 import {contextoCliente,crearCotizacion,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea} from '../lib/service.js';
@@ -114,6 +115,7 @@ async function atender(req,res){
   });
   const d=leerTurno(texto,{estado,cotizacion:q,interpretacion});
   const productoDicho=productoExplicito(texto);
+  const seleccion=avanzarSeleccion(texto,estado,q);
   if(productoDicho && !q)estado.producto=productoDicho;
   let mensaje='',observacion='Reglas ERP/CRM verificadas';
   const mayorDeUno=ctx=>ctx.cantidad_pendiente&&ctx.cantidad_pendiente>0;
@@ -164,6 +166,18 @@ async function atender(req,res){
      mensaje=explicarStockDeCotizacion(q,productoDicho);
    } else if(esEscenarioPC3() && /\b(?:cerradora|mantenimiento|parada\s+de\s+2|por\s+que\s+falta\s+evaporada)\b/.test(d.textoNormalizado)){
      mensaje='En el escenario PC3, la cerradora tiene una parada programada de 2 horas el 13/11/2026 (VEN-CIE-001). La capacidad de la línea en tres turnos baja de 19,200 a 17,600 cajas frente a 18,000 de carga (brecha de 400). Para La Alameda, se observa un faltante específico de 20 cajas de evaporada el 16/11 y se plantea OP-EVA-1711 para el 17/11. Las 400 cajas son una brecha agregada de capacidad, no 400 cajas faltantes en el pedido.';
+   } else if(seleccion){
+     if(seleccion.operaciones){
+       for(const item of seleccion.operaciones){
+         if(!q || q.estado==='CONFIRMADA')q=await crearCotizacion(idCliente,item.id,item.cantidad);
+         else q=await cambiarLinea(q.id_cotizacion,item.id,item.cantidad,{modo:'AGREGAR'});
+         // Si falla una línea posterior, no volver a sumar las ya registradas.
+         estado.seleccion_productos.items=estado.seleccion_productos.items.filter(x=>x.id!==item.id);
+       }
+       delete estado.seleccion_productos;estado.producto=seleccion.operaciones.at(-1).id;
+       estado.cantidad_pendiente=null;estado.agregando_producto=false;
+       mensaje=propuesta(q,estado);
+     }else mensaje=seleccion.mensaje;
    } else if(estado.esperando==='CONFIRMAR_TIPO_LECHE' && esConfirmacionCorta(texto)){
      estado.producto=estado.producto_pendiente;estado.producto_pendiente=null;
      estado.esperando=estado.agregando_producto?'CANTIDAD_ADICIONAL':'PEDIR_CANTIDAD';
