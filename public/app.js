@@ -104,13 +104,12 @@ function panelCasoPC3(){
   const e=app.datos?.escenario_pc3;
   if(!e)return '';
   const m=e.mantenimiento?.[0];
-  return `<div class="card" style="padding:14px 20px;margin:0 0 15px;border-left:4px solid #0c58ca;background:#f3f7ff">
-    <strong>CASO PC3 · La Alameda · Escenario fijo al 13/11/2026</strong>
-    <p style="margin:7px 0">360 cajas: 180 UHT + 60 evaporada de 400 g + 120 fresca. <b>Disponibles para el 16/11: 340/360</b>; faltan <b>20 de evaporada</b>. Orden <b>OP-EVA-1711</b>: 20 previstas el <b>17/11</b> (condicionales).</p>
-    <p style="margin:6px 0">Mantenimiento de cerradora: ${esc(m?.duracion_horas||2)} h el 13/11 · Capacidad simulada: 19,200 → 17,600 cajas · Brecha agregada: 400.</p>
-    <div class="chat-actions" style="margin-top:8px"><button class="quick-btn" data-chat-suggest="Quiero preparar el caso PC3 del informe">Preparar caso 360 cajas</button><button class="quick-btn" data-chat-suggest="¿Qué pasó con la cerradora y cómo afecta la producción?">Explicar mantenimiento</button></div>
-    <small>Datos académicos sintéticos. Propuesta comercial no equivale a entrega confirmada; requiere cliente, Calidad y logística.</small>
-  </div>`;
+  return `<details class="card" style="padding:12px 18px;margin:0 0 15px;border-left:4px solid #0c58ca;background:#f3f7ff">
+    <summary style="cursor:pointer;font-weight:700">Caso PC3 · Datos del escenario (consulta opcional)</summary>
+    <p style="margin:9px 0 5px">Solicitud: 180 cajas UHT, 60 de evaporada 400 g y 120 de fresca. Inventario liberado para el 16/11: 340 de las 360 cajas. Las otras 20 son de evaporada y se prevén desde el 17/11 por OP-EVA-1711; no hay promesa de despacho.</p>
+    <p style="margin:6px 0">Parada de cerradora: ${esc(m?.duracion_horas||2)} h el 13/11. Capacidad: 19,200 → 17,600 cajas; brecha agregada: 400.</p>
+    <small>Información académica sintética. Para iniciar el caso, escribe tu solicitud en el chat. Stock, Calidad, logística y aceptación se validan por separado.</small>
+  </details>`;
 }
 function selectorEscenario(){
   const normal=ES_CASO_PC3?'':' selected';
