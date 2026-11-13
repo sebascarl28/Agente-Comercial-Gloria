@@ -43,5 +43,5 @@ test('Conserva aislamiento por sesión y oculta resumen incompleto en frontend',
   assert.match(s,/X-Demo-Session/);
   assert.match(s,/mostrarResumenFinal\(q\)\?summaryView\(q\)/);
   assert.match(api,/enSimulacion\(req,\(\)=>atender\(req,res\)\)/);
-  assert.match(api,/d.accion==='CONSULTAR'/);
+  assert.match(api,/d\.accion==='CONSULTAR'/);
 });

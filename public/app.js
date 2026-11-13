@@ -1,6 +1,7 @@
 const $ = (sel,root=document) => root.querySelector(sel);
 const $$ = (sel,root=document) => [...root.querySelectorAll(sel)];
-const DEMO_SESION_KEY='gloria_demo_session_v1';
+const ES_CASO_PC3=new URLSearchParams(location.search).get('escenario')==='pc3';
+const DEMO_SESION_KEY=ES_CASO_PC3?'gloria_demo_session_pc3_informe':'gloria_demo_session_v1';
 function nuevaSesionId(){
   const id=crypto.randomUUID();
   sessionStorage.setItem(DEMO_SESION_KEY,id);
@@ -29,7 +30,7 @@ const dato=(str)=>esc(str);
 let toastTimer;
 function toast(mensaje,esError=false){const t=$('#toast');t.textContent=mensaje;t.className='toast'+(esError?' error':'');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true},6000);}
 async function api(url,{method='GET',body,staff}={}){
-  const headers={'Content-Type':'application/json','X-Demo-Session':app.sesionId};
+  const headers={'Content-Type':'application/json','X-Demo-Session':app.sesionId,'X-Demo-Scenario':ES_CASO_PC3?'pc3':'normal'};
   if(app.demoPin)headers['X-Demo-Pin']=app.demoPin;
   if(staff)headers['X-Staff-Pin']=app.pins[staff]||'';
   const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});
@@ -93,6 +94,18 @@ function sugerenciasDelMomento(q){
   if(q.forma_pago==='SIN_DEFINIR')return [['Con mi crédito','Quiero pagar con el crédito aprobado'],['Pago contado','Quiero pagar al contado']];
   return [['Añadir otra leche','¿Puedo añadir otro producto?'],['Consultar cotización','¿Cómo va mi cotización?'],['Solicitar descuento','Quiero solicitar descuento']];
 }
+function panelCasoPC3(){
+  const e=app.datos?.escenario_pc3;
+  if(!e)return '';
+  const m=e.mantenimiento?.[0];
+  return `<div class="card" style="padding:14px 20px;margin:0 0 15px;border-left:4px solid #0c58ca;background:#f3f7ff">
+    <strong>CASO PC3 · La Alameda · Escenario fijo al 13/11/2026</strong>
+    <p style="margin:7px 0">360 cajas: 180 UHT + 60 evaporada de 400 g + 120 fresca. <b>Disponibles para el 16/11: 340/360</b>; faltan <b>20 de evaporada</b>. Orden <b>OP-EVA-1711</b>: 20 previstas el <b>17/11</b> (condicionales).</p>
+    <p style="margin:6px 0">Mantenimiento de cerradora: ${esc(m?.duracion_horas||2)} h el 13/11 · Capacidad simulada: 19,200 → 17,600 cajas · Brecha agregada: 400.</p>
+    <div class="chat-actions" style="margin-top:8px"><button class="quick-btn" data-chat-suggest="Quiero preparar el caso PC3 del informe">Preparar caso 360 cajas</button><button class="quick-btn" data-chat-suggest="¿Qué pasó con la cerradora y cómo afecta la producción?">Explicar mantenimiento</button></div>
+    <small>Datos académicos sintéticos. Propuesta comercial no equivale a entrega confirmada; requiere cliente, Calidad y logística.</small>
+  </div>`;
+}
 function chatView(){
   const mensajes=app.mensajes.length?app.mensajes:welcome();
   const q=quote();
@@ -100,7 +113,7 @@ function chatView(){
   return `${head('🤖','Atención Comercial con IA','Conversa, cotiza, negocia y gestiona pedidos.')}
   <div class="toolbar" style="display:flex;justify-content:flex-end;margin-top:-12px;margin-bottom:12px">
     <button class="btn outline" type="button" data-nueva-simulacion title="Nueva sesión independiente con los mismos datos originales">↻ Nueva simulación</button>
-  </div>${barCliente()}
+  </div>${barCliente()}${panelCasoPC3()}
   <section class="card chat-card" aria-label="Conversación"><div class="chat-messages" id="chatHistory">${mensajes.map(m=>`<div class="chat-row ${m.rol==='cliente'?'client':'agente'}">${m.rol==='cliente'?'':'<div class="avatar">🤖</div>'}<div class="bubble">${esc(m.texto)}<div class="msg-meta">${m.fecha?new Date(m.fecha).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Lima'}):''}</div></div></div>`).join('')}</div></section>
   <div class="chat-actions">${qactions.map(([label,mensaje])=>`<button class="quick-btn" data-chat-suggest="${esc(mensaje)}">${esc(label)}</button>`).join('')}</div>
   <form id="chatForm" class="composer"><textarea id="chatMessage" placeholder="Escribe tu mensaje al Agente Comercial Gloria..." aria-label="Mensaje" rows="1" maxlength="1200" required></textarea><button title="Enviar" aria-label="Enviar mensaje" type="submit" ${app.busy?'disabled':''}>➤</button></form>
@@ -162,7 +175,7 @@ function formQuote(idProduct){const products=app.datos.productos;const anadir=!!
 function formModificacion(){const q=quote();if(!q)return toast('Primero crea una cotización.',true);if(q.items?.length>1){toast('Esta cotización tiene varias líneas. Puedes decir en el chat: cambia UHT a 20 cajas o quita leche fresca.',true);return;}modal('Modificar cotización',`<form id="modalEditQuote" class="form-grid"><label class="field wide">Producto<select name="producto">${app.datos.productos.map(p=>`<option value="${esc(p.id_producto)}" ${p.id_producto===q.id_producto?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select></label><label class="field wide">Cantidad de cajas<input name="cantidad" type="number" value="${q.cantidad}" min="1" max="10000" required /></label><button type="submit" class="btn">Guardar nueva versión</button></form><p class="footnote">Cambiar producto o cantidad obliga a revisar las aprobaciones de descuentos y las entregas anteriores.</p>`);}
 function formDescuento(){if(!quote())return toast('Primero prepara una cotización.',true);modal('Solicitar descuento',`<form id="modalDiscount" class="form-grid"><label class="field wide">Porcentaje solicitado<input type="number" name="pct" step="0.5" min="0" max="12" value="8" required /></label><div class="notice wide">Hasta 5 %: agente, si se cumple margen. Más de 5 % y hasta 12 %: Jefatura Comercial; puede aprobar menos de lo solicitado.</div><button class="btn" type="submit">Presentar solicitud</button></form>`);}
 function formPago(){const q=quote();if(!q)return toast('Primero prepara una cotización.',true);modal('Condiciones de pago',`<p>Selecciona la modalidad de pago para ${money(q.total)}.</p><div class="chat-actions" style="padding-top:0">${button('Contado','data-pago="CONTADO"','primary')}${button('Crédito aprobado','data-pago="CREDITO"','secondary')}${button('Anticipo 40 % + saldo','data-pago="ANTICIPO"','secondary')}</div><p class="footnote">El anticipo es una política académica simulada. No registra un pago real.</p>`);}
-function formEntrega(){const q=quote();if(!q)return toast('Primero prepara una cotización.',true);if(q.items?.length>1){modal('Entregas por producto',`<p>Esta cotización incluye ${q.items.length} leches. Las fechas se validan para cada tipo y lote.</p><div class=\"chat-actions\">${button('Entregas por partes','data-quick-entrega=\"DOS_PARTES\"','primary')}${button('Todo junto','data-quick-entrega=\"TODO_DESPUES\"','secondary')}</div><p class=\"footnote\">Puedes negociar fechas precisas por chat.</p>`);return;}const d=q.disponibilidad;const f=d.planes?.[0]?.fecha_disponibilidad;const dp=f?String(f).slice(0,10):'';const hoy=app.datos.fecha_servidor;const manana=new Date(hoy+'T12:00:00Z');manana.setUTCDate(manana.getUTCDate()+1);const f1=manana.toISOString().slice(0,10);const primero=Math.min(q.cantidad,d.disponibles);const segundo=q.cantidad-primero;
+function formEntrega(){const q=quote();if(!q)return toast('Primero prepara una cotización.',true);if(q.items?.length>1){modal('Entregas por producto',`<p>Esta cotización incluye ${q.items.length} leches. Las fechas se validan para cada tipo y lote.</p><div class=\"chat-actions\">${button('Entregas por partes','data-quick-entrega=\"DOS_PARTES\"','primary')}${button('Todo junto','data-quick-entrega=\"TODO_DESPUES\"','secondary')}</div><p class=\"footnote\">Puedes negociar fechas precisas por chat.</p>`);return;}const d=q.disponibilidad;const f=d.planes?.[0]?.fecha_disponibilidad;const dp=f?String(f).slice(0,10):'';const hoy=app.datos.fecha_servidor;const manana=new Date(hoy+'T12:00:00Z');manana.setUTCDate(manana.getUTCDate()+1);const f1=ES_CASO_PC3?'2026-11-16':manana.toISOString().slice(0,10);const primero=Math.min(q.cantidad,d.disponibles);const segundo=q.cantidad-primero;
   modal('Proponer entregas y fechas',`<p>Pedido: <strong>${q.cantidad} cajas</strong>. Stock libre: <strong>${d.disponibles}</strong> · Producción prevista: <strong>${d.planificadas}</strong>.</p>
   <div class="chat-actions" style="padding:0 0 15px">${button('250 ahora + faltante después','data-quick-entrega="DOS_PARTES"','primary')}${button('Todo junto después','data-quick-entrega="TODO_DESPUES"','secondary')}</div>
   <div class="notice">O también registra una distribución de fechas propuesta por el cliente. Se verificará contra el stock y PP-PI.</div>

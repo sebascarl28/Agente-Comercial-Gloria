@@ -1,3 +1,5 @@
+import {esEscenarioPC3} from '../lib/escenario.js';
+import {consulta} from '../lib/db.js';
 import { enSimulacion } from '../lib/db.js';
 import { respuesta,errorJson,revisarAcceso,metodo } from '../lib/http.js';
 import { clientesYCatalogo,contextoCliente,detalleCotizacion,disponibilidad } from '../lib/service.js';
@@ -11,7 +13,15 @@ async function atender(req,res){
     const cotizacion=cotizacion_id?await detalleCotizacion(cotizacion_id):null;
     if(cotizacion&&cotizacion.id_cliente!==cliente_id)throw Object.assign(new Error('Cotización no corresponde al cliente seleccionado.'),{status:403});
     const stocks=await Promise.all(base.productos.map(async p=>({id_producto:p.id_producto,...await disponibilidad(p.id_producto)})));
-    respuesta(res,200,{ok:true,...base,cliente, cotizacion, stocks});
+    const escenario_pc3=esEscenarioPC3()?{
+      fecha_corte:'2026-11-13',fecha_solicitada:'2026-11-16',fecha_alternativa:'2026-11-17',
+      solicitud:{uht:180,evaporada:60,fresca:120,total:360},
+      cobertura:{uht:180,evaporada:40,fresca:120,total:340},
+      falta_evaporada:20,referencia_produccion:'OP-EVA-1711',
+      demanda_linea:18000,capacidad_nominal:19200,capacidad_ajustada:17600,brecha_linea:400,
+      mantenimiento:(await consulta('SELECT * FROM pc3_mantenimiento ORDER BY fecha'))
+    }:null;
+    respuesta(res,200,{ok:true,...base,cliente, cotizacion, stocks,escenario_pc3});
   }catch(err){errorJson(res,err);}
 }
 

@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {esEscenarioPC3,PRIMERA_ENTREGA_PC3,SEGUNDA_ENTREGA_PC3} from '../lib/escenario.js';
 import {enSimulacion,consulta,uno} from '../lib/db.js';
 import {respuesta,errorJson,revisarAcceso,metodo,falla,obligatorio} from '../lib/http.js';
 import {interpretar} from '../lib/ai.js';
@@ -104,7 +105,17 @@ async function atender(req,res){
   try{
    // Una aceptación se interpreta respecto a la pregunta pendiente. Si hay falta de
    // cobertura, nunca se convierte un «sí» genérico en pedido confirmado.
-   if(estado.esperando==='CONFIRMAR_TIPO_LECHE' && esConfirmacionCorta(texto)){
+   if(esEscenarioPC3() && /\b(?:caso\s+pc3|caso\s+del\s+informe|escenario\s+pc3)\b/.test(d.textoNormalizado)){
+     // La solicitud académica se prepara en tres líneas de UNA cotización.
+     // No se reserva inventario ni se promete ninguna fecha en este paso.
+     q=await crearCotizacion(idCliente,'PRD-001',180);
+     q=await cambiarLinea(q.id_cotizacion,'PRD-002',60,{modo:'AGREGAR'});
+     q=await cambiarLinea(q.id_cotizacion,'PRD-003',120,{modo:'AGREGAR'});
+     estado.producto='PRD-002';estado.esperando='ELEGIR_FECHA';
+     mensaje='Preparé el caso sintético SOL-LA-002: 180 cajas UHT, 60 de evaporada de 400 g y 120 de fresca (360 en total). Según el ERP simulado, para el 16/11/2026 solo podemos cubrir 340: faltan 20 de evaporada. Planeamiento prevé esas 20 desde el 17/11 por la orden OP-EVA-1711, sujetas a Calidad y despacho. Hubo una parada simulada de 2 h en la cerradora el 13/11. ¿Te propongo 340 para el 16 y 20 de evaporada para el 17?';
+   } else if(esEscenarioPC3() && /\b(?:cerradora|mantenimiento|parada\s+de\s+2|por\s+que\s+falta\s+evaporada)\b/.test(d.textoNormalizado)){
+     mensaje='En el escenario PC3, la cerradora tiene una parada programada de 2 horas el 13/11/2026 (VEN-CIE-001). La capacidad de la línea en tres turnos baja de 19,200 a 17,600 cajas frente a 18,000 de carga (brecha de 400). Para La Alameda, se observa un faltante específico de 20 cajas de evaporada el 16/11 y se plantea OP-EVA-1711 para el 17/11. Las 400 cajas son una brecha agregada de capacidad, no 400 cajas faltantes en el pedido.';
+   } else if(estado.esperando==='CONFIRMAR_TIPO_LECHE' && esConfirmacionCorta(texto)){
      estado.producto=estado.producto_pendiente;estado.producto_pendiente=null;
      estado.esperando=estado.agregando_producto?'CANTIDAD_ADICIONAL':'PEDIR_CANTIDAD';
      if(estado.cantidad_pendiente){const qty=estado.cantidad_pendiente;estado.cantidad_pendiente=null;
@@ -188,9 +199,12 @@ async function atender(req,res){
      const faltan=q.items.filter(x=>x.cantidad>x.disponibilidad.disponibles+x.disponibilidad.planificadas);
      if(faltan.length)mensaje=`Antes de coordinar, falta cobertura de ${faltan.map(x=>x.producto_nombre).join(' y ')}. Puedo ayudarte a ajustar las cajas.`;
      else if(d.fecha||d.modo){
-       const modo=d.modo==='DOS_PARTES'?'DOS_PARTES':'TODO_DESPUES';
-       const r=await proponerEntrega(q.id_cotizacion,{modo,fecha:d.fecha||undefined});q=r.cotizacion;
-       estado.esperando='ACEPTAR_ENTREGA';mensaje=r.mensaje;
+       const casoOficial=esEscenarioPC3() && q.items?.length===3 && q.items.some(x=>x.id_producto==='PRD-002'&&Number(x.cantidad)===60);
+       const pide16=casoOficial && d.fecha===PRIMERA_ENTREGA_PC3;
+       const modo=pide16||d.modo==='DOS_PARTES'?'DOS_PARTES':'TODO_DESPUES';
+       const r=await proponerEntrega(q.id_cotizacion,{modo,fecha:pide16?undefined:d.fecha||undefined});q=r.cotizacion;
+       estado.esperando='ACEPTAR_ENTREGA';
+       mensaje=(pide16?'No hay 60 cajas de evaporada liberadas para el 16/11: solo hay 40. Las otras 20 dependen de la orden OP-EVA-1711 y de la parada de mantenimiento de 2 h de la cerradora el 13/11. Por eso no puedo prometer las 360 juntas ese día. ':'')+r.mensaje;
      }else{estado.esperando='ELEGIR_FECHA';mensaje=`Para ${resumenLineas(q)}, ¿qué fecha prefieres? Puedes recibir todo junto o por partes.`;}
    } else if(q && pendientesDescuento(q)?.estado==='OFERTADO' && esAceptacionDescuento(texto)){
      const ap=pendientesDescuento(q);
