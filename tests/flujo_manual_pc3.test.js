@@ -16,7 +16,8 @@ test('caso PC3 se puede iniciar escribiendo, sin pulsar un botón',()=>{
 test('la respuesta del caso PC3 se activa por intención de preparar, no solo por mencionarlo',()=>{
   assert.match(chat,/if\(esEscenarioPC3\(\) && /);
   assert.match(chat,/hagamos\|hacer\|probar/);
-  assert.match(chat,/340 cajas el 16\/11 y las 20 restantes el 17\/11/);
+  assert.match(chat,/340 cajas el 16/);
+  assert.match(chat,/20 de evaporada el 17/);
 });
 
 test('resumen final usa condiciones reales de la cotización confirmada',()=>{
