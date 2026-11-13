@@ -2,7 +2,7 @@
 
 Prototipo académico **independiente del proyecto previo**. Asesor B2B de productos lácteos, diseñado para **Comercial La Alameda S.A.C.** y clientes mayoristas/distribuidores.
 
-## Qué incluye esta primera versión
+## Qué incluye el prototipo
 
 - Interfaz responsive blanca y azul: chat principal, Clientes, Productos (con imágenes ilustrativas), Cotizaciones, Pedidos, Stock/Lotes, Plan de Producción, Finanzas y Jefatura Comercial.
 - **Groq** interpreta el lenguaje natural y conversa. El backend, no la IA, consulta PostgreSQL y aplica reglas de negocio. Si falta la API de Groq, el chat funciona de manera **guiada** (mensajes más limitados; se indica en pantalla).
@@ -18,33 +18,24 @@ Prototipo académico **independiente del proyecto previo**. Asesor B2B de produc
 ## 1. Crear base de datos nueva en Supabase
 
 1. Ve a <https://supabase.com/dashboard> y crea un **proyecto nuevo** para este repositorio. No utilices el proyecto anterior si deseas mantenerlos independientes.
-2. Abre **SQL Editor** y ejecuta **`sql/01_esquema.sql`**.
-3. En otra consulta, ejecuta **`sql/02_datos_demo.sql`**.
-4. En el **Project Settings → Database → Connection string**, copia el URI del **Session Pooler** (o el método de conexión disponible). Revisa si el entorno de Vercel necesita IPv4. Usa `sslmode=require` cuando corresponda.
-5. Una contraseña que contenga caracteres reservados como `@`, `#`, `/` debe ir codificada en la URL (`@` se convierte en `%40`).
+2. En **SQL Editor**, ejecuta en orden `sql/01_esquema.sql`, `sql/02_datos_demo.sql`, `sql/03_simulaciones_aisladas.sql`, `sql/04_cotizaciones_multiproducto.sql` y `sql/05_escenario_pc3_360.sql`. El último instala el escenario académico PC3 sin cambiar los datos base de la demo normal. Si el proyecto ya funciona, no vuelvas a ejecutar los scripts de instalación; aplica solo migraciones pendientes.
+3. En **Project Settings → Database → Connection string**, copia el URI del **Session Pooler** (o el método de conexión disponible). Revisa si el entorno de Vercel necesita IPv4. Usa `sslmode=require` cuando corresponda.
+4. Una contraseña que contenga caracteres reservados como `@`, `#`, `/` debe ir codificada en la URL (`@` se convierte en `%40`).
 
 El esquema crea las tablas `clientes`, `contactos_cliente`, `direcciones_entrega`, `productos`, `stock_lotes`, `plan_produccion`, `cotizaciones`, `cotizacion_detalle`, `historial_cotizaciones`, `solicitudes_credito`, `solicitudes_descuento`, `pedidos`, `entregas`, `pagos`, `reservas_stock`, `asignaciones_produccion` y `conversaciones`.
 
 > **Datos ficticios:** los RUC, celulares, contactos, correos y direcciones precargados son deliberadamente de ejemplo. Las imágenes SVG son ilustraciones creadas para esta demo, no fotografías oficiales de productos Gloria.
 
-## 2. Subir los archivos a GitHub
+## 2. Código y despliegue
 
-Repositorio creado: **`sebascarl28/Agente-Comercial-Gloria`**.
+Repositorio: **`sebascarl28/Agente-Comercial-Gloria`**. El código vive en `public/` (interfaz), `api/` (endpoints), `lib/` (reglas y servicios), `sql/` (instalación y escenario PC3) y `tests/` (pruebas). Los cambios se revisan en una rama y se unen a `main` mediante una pull request. Vercel despliega automáticamente los cambios de `main` si el proyecto conserva su integración con GitHub.
 
-1. Descarga el ZIP y **descomprímelo** en una carpeta de Windows.
-2. En el repositorio, haz clic en **Add file → Upload files**.
-3. Arrastra **el contenido de la carpeta** `Agente-Comercial-Gloria` (subcarpetas `api`, `lib`, `public`, `sql`, etc. y archivos de la raíz). **No** subas solamente el ZIP ni dejes todo dentro de otra carpeta anidada.
-4. Confirma **Commit changes** en la rama `main`.
-5. Comprueba que se vean `package.json`, `vercel.json`, `public`, `api`, `lib` y `sql` en la raíz de GitHub.
+## 3. Configurar Vercel
 
-Si el navegador no acepta arrastrar carpetas, usa GitHub Desktop o VS Code con Git; la estructura interna debe mantenerse.
-
-## 3. Crear Vercel aparte del proyecto antiguo
-
-1. En <https://vercel.com/new>, **Import Git Repository** → `sebascarl28/Agente-Comercial-Gloria`.
+1. Si aún no existe el proyecto en Vercel, entra a <https://vercel.com/new> y selecciona **Import Git Repository** → `sebascarl28/Agente-Comercial-Gloria`.
 2. Si solicita framework, elige **Other**. El proyecto ya contiene `vercel.json` con `outputDirectory=public` y funciones en `api/`.
 3. En **Project Settings → Environment Variables**, configura las claves indicadas a continuación. Para el despliegue inicial puedes añadírselas antes del primer Deploy.
-4. Pulsa Deploy / Redeploy. La URL raíz `/` abrirá el chat; no necesitarás `/asesor.html`.
+4. Para la instalación inicial pulsa **Deploy**. Después, comprueba en **Deployments** que el commit unido a `main` termine en **Ready / Production**. La URL raíz `/` abre el chat.
 
 ### Variables de entorno (secretas, SOLO Vercel)
 
@@ -90,7 +81,7 @@ lib/db.js → PostgreSQL de Supabase (DATABASE_URL, solo en servidor)
 ```
 
 - El chat **no inventa** stock, precio, crédito, descuentos autorizados ni promesas de entrega: se calculan/consultan en el backend. Si Groq falla, se usa un analizador guiado limitado.
-- Una cotización maneja **un producto por vez** en este MVP. El SQL tiene tabla `cotizacion_detalle` para facilitar una segunda versión con varias líneas de producto.
+- Una cotización admite hasta tres variedades de leche. El backend valida cantidades, descuentos y entregas por producto; cambiar una cantidad obliga a revisar la entrega y cualquier descuento autorizado.
 - No integra SAP real, pasarela de pago, correos ni servicios de transportes; **simula integraciones** ERP (QM/PP-PI/stock/crédito) de forma auditable.
 - Límite académico de seguridad: los PIN **no sustituyen autenticación real con roles**. No emplear para operaciones con clientes verdaderos ni para producción empresarial. No hospedar datos personales reales.
 - Se sugieren fechas mediante inventario y producción; el sistema no confirma automáticamente una fecha logística ni libera un lote que sigue en inspección.
