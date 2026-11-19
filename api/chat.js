@@ -82,14 +82,14 @@ function siguienteNatural(q,estado){
   if(aprobacion){estado.esperando=aprobacion.estado==='OFERTADO'?'ACEPTAR_DESCUENTO':'ESPERAR_JEFATURA';return siguientePaso(q);}
   if(!q.entregas?.length){estado.esperando='ELEGIR_ENTREGA';return propuesta(q,estado);}
   if(!q.entrega_aceptada){estado.esperando='ACEPTAR_ENTREGA';return `La entrega propuesta es ${q.entregas.map(x=>`${x.cajas} cajas de ${nombres[x.id_producto]||'leche'} el ${fecha(x.fecha)}`).join(' y ')}; quedará sujeta a la confirmación del despacho y, en lo que viene de producción, a la liberación de Calidad. ¿Aceptas estas fechas?`;}
-  if(q.forma_pago==='SIN_DEFINIR'){estado.esperando='ELEGIR_PAGO';return '¿Prefieres pagar al contado, usar el crédito aprobado o un anticipo del 40% (opción académica)?';}
-  if(!estado.descuento_consultado&&!q.aprobaciones?.some(x=>x.estado!=='INVALIDADA')){estado.esperando='DESCUENTO_OPCIONAL';return '¿Deseas solicitar un descuento antes de cerrar la cotización? Puedes decirme un porcentaje o responder «sin descuento». Si solicitas más del 5%, Jefatura lo evalúa.';}
+  if(q.forma_pago==='SIN_DEFINIR'){estado.esperando='ELEGIR_PAGO';return '¿Cómo prefieres pagar: al contado, con tu línea de crédito o con un adelanto del 40 % y el resto contra entrega?';}
+  if(!estado.descuento_consultado&&!q.aprobaciones?.some(x=>x.estado!=='INVALIDADA')){estado.esperando='DESCUENTO_OPCIONAL';return '¿Quieres pedir algún descuento? Dime el porcentaje o escribe «sin descuento». Hasta 5 % lo puedo aplicar yo; si es más, lo consulto con Jefatura Comercial.';}
   if(!q.direccion_confirmada){
     if(estado.direccion_borrador?.direccion && estado.direccion_borrador?.distrito){
       estado.esperando='ACEPTAR_DIRECCION_NUEVA';
       return `¿Confirmas la nueva dirección ${estado.direccion_borrador.direccion}, ${estado.direccion_borrador.distrito}?`;
     }
-    estado.esperando='CONFIRMAR_DIRECCION';return `¿Confirmas la dirección registrada ${q.direccion||'del cliente'}, ${q.distrito||'Lima'}, o deseas enviarlo a otra dirección?`;
+    estado.esperando='CONFIRMAR_DIRECCION';return `¿Te lo enviamos a ${q.direccion||'la dirección registrada'}, ${q.distrito||'Lima'}, o prefieres otra dirección?`;
   }
   if(creditoInsuficiente(q)){estado.esperando='REVISAR_CREDITO';return siguientePaso(q);}
   if(!resumenHabilitado(q)){estado.esperando='REVISAR_CONDICIONES';return siguientePaso(q);}
@@ -390,7 +390,7 @@ async function atender(req,res){
    } else if(estado.esperando==='ACEPTAR_DIRECCION_NUEVA' && d.accion==='NO'){
      estado.direccion_borrador=null;estado.esperando='PEDIR_DIRECCION';mensaje='Entendido, no registraré esa dirección. ¿Cuál es la calle, número y distrito correctos?';
    } else if(estado.esperando==='DESCUENTO_OPCIONAL' && (d.accion==='NO'||d.accion==='SIN_DESCUENTO')){
-     estado.descuento_consultado=true;mensaje=`Sin problema, mantendremos el descuento actual de ${q?.descuento_pct||0}%. ${siguienteNatural(q,estado)}`;
+     estado.descuento_consultado=true;mensaje=`${Number(q?.descuento_pct)>0?`Sin problema, seguimos con el ${Number(q.descuento_pct)} % de descuento que ya tienes.`:'Sin problema, lo dejamos sin descuento.'} ${siguienteNatural(q,estado)}`;
    } else if(estado.esperando==='PEDIR_FECHA_EXACTA' && q && !q.entregas?.length && esConfirmacionCorta(texto) &&
       estado.fecha_referencia?.fecha && Number(estado.fecha_referencia.version)===Number(q.version) && /quieres que revise esa fecha/i.test(ultimoAgente)){
      const r=await proponerEntrega(q.id_cotizacion,{modo:'TODO_DESPUES',fecha:estado.fecha_referencia.fecha});
