@@ -95,6 +95,40 @@ npm run check
 
 Para ejecución local de API/cliente se necesita configuración del proyecto de Vercel y las variables privadas; puedes usar `npx vercel dev` con la cuenta correspondiente.
 
+## 7. Prueba local sin Vercel
+
+No necesitas cuenta de Vercel ni `npx vercel dev`:
+
+1. Copia `.env.example` a `.env.local` y llena `DATABASE_URL`, `GROQ_API_KEY` y `GROQ_MODEL` con los valores que te proporcione el responsable del proyecto. **No compartas ese archivo.**
+2. Ejecuta `npm run dev:local`.
+3. Abre `http://localhost:3000`: la interfaz y la API funcionan igual que en Vercel.
+4. Abre `http://localhost:3000/api/health` para verificar Groq y la base.
+
+`.env.local` está ignorado por git. Para detener el servidor, presiona `Ctrl + C` en la terminal.
+
+## 8. Chequeo de salud antes de la demostración
+
+Abre `/api/health` en la URL de tu proyecto (o `http://localhost:3000/api/health` con `npx vercel dev`). No requiere sesión ni encabezados especiales.
+
+```json
+{
+  "ok": true,
+  "fecha": "2026-11-19T...",
+  "base": { "ok": true, "estado": "ok" },
+  "groq": {
+    "ok": true,
+    "estado": "ok",
+    "modelo_configurado": "openai/gpt-oss-120b",
+    "modelo_valido": true
+  }
+}
+```
+
+- Valida la conexión a PostgreSQL y la clave de Groq usando `/models`: **no consume cuota de generación**.
+- `ok: false` indica qué falla (base o Groq) y el código de error, **sin exponer claves**.
+- Si `modelo_valido: false`, cambia `GROQ_MODEL` en Vercel por uno de `modelos_sugeridos`.
+- Si `estado: "sin_clave"`, falta `GROQ_API_KEY` en Vercel.
+
 ---
 
 **Hecho para una evaluación académica en GE703 – Sistemas Integrados Empresariales.**

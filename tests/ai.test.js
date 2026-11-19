@@ -54,6 +54,41 @@ test('Tras dos respuestas JSON inválidas informa el problema sin exponer el con
  try{const r=await interpretar('hola asesor');assert.equal(calls,2);assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/json_validate_failed/);assert.doesNotMatch(JSON.stringify(r),/texto privado|clave-de-prueba/);}
  finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;}
 });
+test('un 500 transitorio se reintenta y la respuesta válida se usa',async()=>{
+ const key=process.env.GROQ_API_KEY,model=process.env.GROQ_MODEL,original=globalThis.fetch;
+ process.env.GROQ_API_KEY='clave-de-prueba';process.env.GROQ_MODEL='openai/gpt-oss-120b';let calls=0;
+ globalThis.fetch=async()=>{
+  calls++;
+  if(calls===1)return new Response(JSON.stringify({error:{code:'internal_error'}}),{status:500});
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({accion:'conversar',respuesta_libre:'Hola, seguimos.'})}}]}),{status:200});
+ };
+ try{
+  const r=await interpretar('buenas asesor',{fecha_hoy:'2026-11-13'});
+  assert.equal(calls,2);assert.equal(r.motor,'groq');assert.equal(r.respuesta_libre,'Hola, seguimos.');
+ }finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;if(model===undefined)delete process.env.GROQ_MODEL;else process.env.GROQ_MODEL=model;}
+});
+test('un 429 con retry-after se reintenta y no deja la demo en modo guiado',async()=>{
+ const key=process.env.GROQ_API_KEY,model=process.env.GROQ_MODEL,original=globalThis.fetch;
+ process.env.GROQ_API_KEY='clave-de-prueba';process.env.GROQ_MODEL='openai/gpt-oss-120b';let calls=0;
+ globalThis.fetch=async()=>{
+  calls++;
+  if(calls===1)return new Response(JSON.stringify({error:{code:'rate_limit_exceeded'}}),{status:429,headers:{'retry-after':'0.1'}});
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({accion:'conversar',respuesta_libre:'Listo, continuamos.'})}}]}),{status:200});
+ };
+ try{
+  const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+  assert.equal(calls,2);assert.equal(r.motor,'groq');
+ }finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;if(model===undefined)delete process.env.GROQ_MODEL;else process.env.GROQ_MODEL=model;}
+});
+test('dos caídas 503 seguidas activan el modo guiado con diagnóstico claro',async()=>{
+ const key=process.env.GROQ_API_KEY,model=process.env.GROQ_MODEL,original=globalThis.fetch;
+ process.env.GROQ_API_KEY='clave-de-prueba';process.env.GROQ_MODEL='openai/gpt-oss-120b';let calls=0;
+ globalThis.fetch=async()=>{calls++;return new Response(JSON.stringify({error:{code:'service_unavailable'}}),{status:503});};
+ try{
+  const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+  assert.equal(calls,2);assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/503/);
+ }finally{globalThis.fetch=original;if(key===undefined)delete process.env.GROQ_API_KEY;else process.env.GROQ_API_KEY=key;if(model===undefined)delete process.env.GROQ_MODEL;else process.env.GROQ_MODEL=model;}
+});
 test('tool_use_failed intenta una sola vez con JSON alternativo sin usar herramientas',async()=>{
  const key=process.env.GROQ_API_KEY,model=process.env.GROQ_MODEL,original=globalThis.fetch;
  process.env.GROQ_API_KEY='clave-de-prueba';process.env.GROQ_MODEL='openai/gpt-oss-20b';const llamadas=[];
