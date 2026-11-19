@@ -29,3 +29,18 @@ El ZIP **no contiene contraseñas, URI de base de datos ni claves API**. Para ej
 - Vercel, Supabase y Groq son servicios externos, sujetos a sus condiciones y límites de cuenta. SAP/ERP, pasarela de pago y despachos reales **no** están integrados.
 
 La prueba técnica valida el código y la lógica; una ejecución completa del chat requiere la base y los servicios configurados. El resumen de pedidos muestra propuestas sujetas a Calidad y logística cuando hay producción pendiente.
+
+
+## Diagnóstico y recuperación ante fallos
+
+Antes de la demo, abrir `/api/health?groq=1` (por ejemplo `https://agente-comercial-gloria.vercel.app/api/health?groq=1`). Responde un JSON con la configuración (sin mostrar claves) y el estado de cada servicio.
+
+| Síntoma | Causa probable | Qué hacer |
+|---|---|---|
+| `/api/health` devuelve `base_datos.ok: false` | Supabase pausado, `DATABASE_URL` ausente o puerto incorrecto | Reanudar el proyecto en Supabase; usar la URI del *Transaction Pooler* (puerto 6543) en `DATABASE_URL` y volver a desplegar |
+| El chat indica «La base de datos no respondió a tiempo» | Corte transitorio del pooler o arranque en frío | Esperar unos segundos y repetir el mensaje; el sistema ya reintentó la conexión una vez |
+| El chat responde en «modo guiado» (`motor: respaldo_groq`) | Groq con límite (429), caído o lento | No hace falta intervenir: el sistema prueba un segundo modelo (`GROQ_MODEL_RESPALDO`, por defecto `openai/gpt-oss-20b`) y, si también falla, usa reglas locales durante unos segundos. Las reglas de stock, precio, crédito y aprobaciones **no** dependen de Groq. Si persiste, revisar la cuota en la consola de Groq |
+| «Sesión demo ausente o inválida» | Pestaña antigua o almacenamiento del navegador bloqueado | Recargar la página o pulsar «Nueva simulación» |
+| El caso no muestra la parada de la cerradora ni OP-EVA-1711 | Se abrió la demo general | Entrar con `?escenario=pc3` |
+
+Variables opcionales de ajuste: `GROQ_MODEL`, `GROQ_MODEL_RESPALDO` y `GROQ_TIMEOUT_MS` (por defecto 7000 ms por intento).

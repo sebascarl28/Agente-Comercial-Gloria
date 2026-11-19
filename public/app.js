@@ -35,12 +35,28 @@ function mostrarResumenFinal(q){
 const dato=(str)=>esc(str);
 let toastTimer;
 function toast(mensaje,esError=false){const t=$('#toast');t.textContent=mensaje;t.className='toast'+(esError?' error':'');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true},6000);}
+// Las lecturas (GET) se reintentan una vez ante un corte transitorio; las escrituras (POST) NO,
+// para no duplicar mensajes, cotizaciones ni pedidos. Todas tienen un tiempo máximo de espera.
+const pausaMs=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(url,{method='GET',body}={}){
   const headers={'Content-Type':'application/json','X-Demo-Session':app.sesionId,'X-Demo-Scenario':ES_CASO_PC3?'pc3':'normal'};
-  const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});
-  let data;try{data=await r.json()}catch{throw new Error(`Error HTTP ${r.status} (revisa Vercel).`)}
-  if(!r.ok||!data.ok)throw new Error(data.error||`Error HTTP ${r.status}`);
-  return data;
+  const intentos=method==='GET'?2:1;
+  for(let i=1;i<=intentos;i++){
+    const ctl=new AbortController();const reloj=setTimeout(()=>ctl.abort(),25000);
+    let error=null,reintentable=false;
+    try{
+      const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store',signal:ctl.signal});
+      let data=null;try{data=await r.json()}catch{}
+      if(data&&r.ok&&data.ok)return data;
+      reintentable=!data?[502,503,504].includes(r.status):data.reintentable===true;
+      error=new Error(data?(data.error||`Error HTTP ${r.status}`):`El servidor no respondió bien (HTTP ${r.status}). Vuelve a intentarlo en unos segundos.`);
+    }catch(err){
+      reintentable=true;
+      error=new Error(err?.name==='AbortError'?'El servidor tardó demasiado en responder. Vuelve a intentarlo.':'No hay conexión con el servidor. Revisa tu internet y vuelve a intentarlo.');
+    }finally{clearTimeout(reloj);}
+    if(i<intentos&&reintentable){await pausaMs(1200);continue;}
+    throw error;
+  }
 }
 async function cargar({silencioso=false}={}){
   try{
