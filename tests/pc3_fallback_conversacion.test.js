@@ -32,7 +32,7 @@ test('pregunta por stock total: no crear 360 cajas de evaporada',()=>{
   const respuesta=explicarStockDeCotizacion(cotizacion);
   assert.match(respuesta,/cotización actual es de 360 cajas/);
   assert.match(respuesta,/leche evaporada: pediste 60; hay 40/);
-  assert.match(respuesta,/340 cajas para el 16\/11\/2026 y 20 cajas para el 17\/11\/2026/);
+  assert.match(respuesta,/340 cajas para el 16 de noviembre y 20 cajas para el 17 de noviembre/);
   assert.equal(JSON.stringify(cotizacion),antes);
 });
 
@@ -57,7 +57,7 @@ test('servidor prioriza contexto PC3 antes que interpretar cantidad adicional',(
   const cantidad=src.indexOf("d.accion==='CANTIDAD' && d.cantidad");
   assert.ok(stock>0 && stock<cantidad);
   assert.ok(src.indexOf('esCotizacionOficialPC3(q) && esPreguntaFaltanteEntrega(texto)')>stock);
-  assert.ok(src.includes("d.fecha===PRIMERA_ENTREGA_PC3"));
+  assert.ok(src.includes("d.fecha===primeraEntregaPC3()"));
   assert.ok(src.includes('mensajeFaltantePC3()'));
 });
 

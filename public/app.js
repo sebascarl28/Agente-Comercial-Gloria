@@ -134,13 +134,16 @@ function panelCasoPC3(){
   const e=app.datos?.escenario_pc3;
   if(!e)return '';
   const m=e.mantenimiento?.[0];
+  const hoy=fechaLarga(e.fecha_corte),f1=fechaLarga(e.fecha_solicitada),f2=fechaLarga(e.fecha_alternativa);
   return `<details class="card" style="padding:12px 18px;margin:0 0 15px;border-left:4px solid #0c58ca;background:#f3f7ff">
     <summary style="cursor:pointer;font-weight:700">Caso PC3 · Datos del escenario (consulta opcional)</summary>
-    <p style="margin:9px 0 5px">Solicitud: 180 cajas UHT, 60 de evaporada 400 g y 120 de fresca. Inventario liberado para el 16/11: 340 de las 360 cajas. Las otras 20 son de evaporada y se prevén desde el 17/11 por OP-EVA-1711; no hay promesa de despacho.</p>
-    <p style="margin:6px 0">Parada de cerradora: ${esc(m?.duracion_horas||2)} h el 13/11. Capacidad: 19,200 → 17,600 cajas; brecha agregada: 400.</p>
-    <small>Información académica sintética. Para iniciar el caso, escribe tu solicitud en el chat. Stock, Calidad, logística y aceptación se validan por separado.</small>
+    <p style="margin:9px 0 5px">Solicitud: 180 cajas UHT, 60 de evaporada 400 g y 120 de fresca. Inventario liberado para el ${esc(f1)}: 340 de las 360 cajas. Las otras 20 son de evaporada y se prevén desde el ${esc(f2)} por OP-EVA-1711; no hay promesa de despacho.</p>
+    <p style="margin:6px 0">Parada de cerradora: ${esc(m?.duracion_horas||2)} h el ${esc(hoy)} (día de la simulación). Capacidad: 19,200 → 17,600 cajas; brecha agregada: 400.</p>
+    <small>Información académica sintética. Para iniciar el caso escribe en el chat: «Quiero preparar el caso PC3 del informe». Luego pide la entrega para el ${esc(f1)}. Stock, Calidad, logística y aceptación se validan por separado.</small>
   </details>`;
 }
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fechaLarga(iso){const p=String(iso||'').slice(0,10).split('-').map(Number);return p.length===3&&p[1]?`${p[2]} de ${MESES[p[1]-1]}`:'';}
 function selectorEscenario(){
   const normal=ES_CASO_PC3?'':' selected';
   const pc3=ES_CASO_PC3?' selected':'';
