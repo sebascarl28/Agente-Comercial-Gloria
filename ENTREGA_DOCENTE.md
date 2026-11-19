@@ -43,4 +43,4 @@ Antes de la demo, abrir `/api/health?groq=1` (por ejemplo `https://agente-comerc
 | «Sesión demo ausente o inválida» | Pestaña antigua o almacenamiento del navegador bloqueado | Recargar la página o pulsar «Nueva simulación» |
 | El caso no muestra la parada de la cerradora ni OP-EVA-1711 | Se abrió la demo general | Entrar con `?escenario=pc3` |
 
-Variables opcionales de ajuste: `GROQ_MODEL`, `GROQ_MODEL_RESPALDO` y `GROQ_TIMEOUT_MS` (por defecto 7000 ms por intento).
+Orden de respaldo de la IA: modelo principal de Groq → segundo modelo de Groq → DeepSeek (solo si existe `DEEPSEEK_API_KEY`) → reglas locales. Variables opcionales de ajuste: `GROQ_MODEL`, `GROQ_MODEL_RESPALDO`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` y `GROQ_TIMEOUT_MS` (por defecto 7000 ms por intento). La respuesta del chat incluye `proveedor_ia` (`groq` o `deepseek`) para la bitácora.

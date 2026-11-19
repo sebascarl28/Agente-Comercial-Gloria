@@ -8,7 +8,7 @@ export default async function handler(req,res){
     metodo(req,['GET']);
     const informe={
       ok:true,hora:new Date().toISOString(),
-      variables:{DATABASE_URL:!!process.env.DATABASE_URL,GROQ_API_KEY:!!process.env.GROQ_API_KEY},
+      variables:{DATABASE_URL:!!process.env.DATABASE_URL,GROQ_API_KEY:!!process.env.GROQ_API_KEY,DEEPSEEK_API_KEY:!!process.env.DEEPSEEK_API_KEY},
       modelos:{principal:process.env.GROQ_MODEL||'openai/gpt-oss-120b',respaldo:process.env.GROQ_MODEL_RESPALDO||'openai/gpt-oss-20b'},
       base_datos:{ok:false},groq:{probado:false}
     };

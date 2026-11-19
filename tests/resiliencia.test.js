@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {esTransitorio,errorJson} from '../lib/http.js';
-import {interpretar} from '../lib/ai.js';
+import {interpretar,reiniciarPausasIA} from '../lib/ai.js';
 import health from '../api/health.js';
 
 function resFalsa(){const r={cabeceras:{},setHeader(k,v){this.cabeceras[k]=v;},end(c){this.cuerpo=JSON.parse(c);}};return r;}
 const json=(obj,status=200,headers={})=>new Response(JSON.stringify(obj),{status,headers});
 const buena=(texto='Hola')=>json({choices:[{message:{content:JSON.stringify({accion:'conversar',respuesta_libre:texto})}}]});
 function conEntorno(vars,fn){
+  reiniciarPausasIA();
   const antes={};for(const k of Object.keys(vars)){antes[k]=process.env[k];if(vars[k]===null)delete process.env[k];else process.env[k]=vars[k];}
   const f=globalThis.fetch;
   return Promise.resolve().then(fn).finally(()=>{globalThis.fetch=f;for(const k of Object.keys(antes)){if(antes[k]===undefined)delete process.env[k];else process.env[k]=antes[k];}});
@@ -47,4 +48,22 @@ test('/api/health informa la configuración sin exponer secretos',()=>conEntorno
   assert.equal(res.statusCode,503);assert.equal(res.cuerpo.variables.DATABASE_URL,false);assert.equal(res.cuerpo.variables.GROQ_API_KEY,true);
   assert.doesNotMatch(JSON.stringify(res.cuerpo),/clave-secreta-123/);
   const mala=resFalsa();await health({method:'POST'},mala);assert.equal(mala.statusCode,405);
+}));
+
+test('Si Groq falla se usa DeepSeek de respaldo con JSON y sin razonamiento',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek',DEEPSEEK_MODEL:null},async()=>{
+  const llamadas=[];
+  globalThis.fetch=async(u,o)=>{llamadas.push({u,auth:o.headers.Authorization,cuerpo:JSON.parse(o.body)});return u.includes('groq')?json({error:{code:'x'}},503):buena('Hola desde DeepSeek');};
+  const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+  const ds=llamadas.at(-1);
+  assert.equal(r.motor,'groq');assert.equal(r.proveedor_ia,'deepseek');assert.equal(r.respuesta_libre,'Hola desde DeepSeek');
+  assert.equal(ds.u,'https://api.deepseek.com/chat/completions');assert.equal(ds.auth,'Bearer clave-deepseek');
+  assert.equal(ds.cuerpo.response_format.type,'json_object');assert.deepEqual(ds.cuerpo.thinking,{type:'disabled'});
+  assert.match(JSON.stringify(ds.cuerpo.messages[0].content),/JSON/);
+}));
+test('Con la clave de Groq inválida se prueba DeepSeek y una respuesta en blanco se descarta',()=>conEntorno({GROQ_API_KEY:'mala',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  let groq=0;
+  globalThis.fetch=async(u)=>{if(u.includes('groq')){groq++;return json({error:{code:'invalid_api_key'}},401);}return json({choices:[{message:{content:'    '}}]});};
+  const r=await interpretar('hola asesor');
+  assert.equal(groq,1,'una clave inválida no se prueba con el otro modelo de Groq');
+  assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/JSON inválida/);
 }));
