@@ -81,6 +81,31 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   async function llamar(handler,body,headers={}){const req={method:'POST',headers:{'x-demo-scenario':m.pc3?'pc3':'normal',...headers},body};let result;const res={setHeader(){},end(x){result=JSON.parse(x);}};await handler(req,res);assert.equal(res.statusCode,200,JSON.stringify(result));return result;}
   const decir=async mensaje=>llamar(chat,{mensaje,id_cliente:'CLI-LA-001',id_conversacion:idS});
   const paso=async(texto,regex)=>{const r=await decir(texto);assert.match(r.respuesta,regex,`Al decir «${texto}» respondió: ${r.respuesta}`);return r;};
+  // Reproduce la conversación de la 01:01: no aceptar la versión vieja al sumar,
+  // elegir crédito con lenguaje natural y enviar 10 porciento a Jefatura.
+  await paso('quiero 10 cajas de leche evaporadaa y 30 de leche fresca',/10 cajas.*30 cajas/i);
+  assert.equal(m.q,null);
+  await paso('correcto, pero puedes aumentar 5 cajas mas a la leche evaporada por fa',/15 cajas.*30 cajas/i);
+  assert.equal(m.q,null);
+  await paso('Corregir',/no crear[eé]/i);
+  await paso('osea 15 cajas de leche evaporadaa y 35 de leche fresca',/15 cajas.*35 cajas/i);
+  await paso('aumentale 5 cajas a la leche evaporada',/20 cajas.*35 cajas/i);
+  const cotizado=await paso('Sí',/20 cajas.*35 cajas/i);
+  assert.deepEqual(cotizado.cotizacion.items.map(x=>[x.id_producto,x.cantidad]),[['PRD-002',20],['PRD-003',35]]);
+  await paso('el 27 de noviembre',/2026-11-27/);
+  await paso('bueno, acepto la propuesta',/pagar|cr[eé]dito|contado/i);
+  const creditoLibre=await paso('diria que quiero pagar asi al credito que tengo',/cr[eé]dito/i);
+  assert.equal(creditoLibre.cotizacion.forma_pago,'CREDITO');
+  await paso('puedo pedir el 10 porciento?',/Jefatura/i);
+  assert.equal(m.q.aprobaciones[0].solicitado_pct,10);
+  m.reiniciar(false);
+  // En la versión actual el nombre bien escrito crea la cotización de inmediato;
+  // la misma corrección debe sumar cinco sin pedir reiniciar el pedido.
+  await paso('quiero 10 cajas de leche evaporada y 30 de leche fresca',/10 cajas.*30 cajas/i);
+  assert.deepEqual(m.q.items.map(x=>x.cantidad),[10,30]);
+  const directo=await paso('correcto, pero puedes aumentar 5 cajas mas a la leche evaporada por fa',/15 cajas.*30 cajas/i);
+  assert.deepEqual(directo.cotizacion.items.map(x=>x.cantidad),[15,30]);
+  m.reiniciar(false);
   // Reproduce el diálogo real de Sebastián, incluida la fecha expresada en palabras.
   await paso('buenas, quiero pedir varios productos',/leches|productos/i);
   await paso('quiero fresca y evaporada',/fresca.*evaporada/i);
