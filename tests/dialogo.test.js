@@ -66,6 +66,14 @@ test('La IA puede clasificar una consulta vaga, pero la oferta viene del estado 
   const cambio=leerTurno('quiero 10 % más',{estado:{hoy:'2026-11-20'},cotizacion,interpretacion:{proveedor_ia:'deepseek',accion:'consultar',tema_consulta:'descuento'}});
   assert.notEqual(cambio.accion,'CONSULTAR');
 });
+test('El porcentaje escrito con palabras conserva la cifra aun si la IA propone otra',()=>{
+  const estado={esperando:'PEDIR_DESCUENTO',hoy:'2026-11-20'};
+  const ia={proveedor_ia:'deepseek',accion:'descuento',descuento_pct:9};
+  assert.equal(leerTurno('quiero diez por ciento de descuento',{estado,interpretacion:ia}).descuentoPct,10);
+  assert.equal(leerTurno('quiero un descuento',{estado,interpretacion:ia}).descuentoPct,null);
+  assert.equal(leerTurno('quiero quince por ciento de descuento',{estado,interpretacion:{...ia,descuento_pct:15}}).descuentoPct,15);
+  assert.equal(leerTurno('quiero diez por ciento de descuento',{estado,interpretacion:{accion:'conversar'}}).descuentoPct,10);
+});
 test('Respuestas comerciales y descuento opcional',()=>{
   assert.equal(leer('sin descuento').accion,'SIN_DESCUENTO');
   assert.equal(leer('quiero el 8% de descuento').descuentoPct,8);

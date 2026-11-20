@@ -151,7 +151,10 @@ async function atender(req,res){
   const consultaEstado=d.accion==='CONSULTAR';
   const preguntaMantenimiento=esEscenarioPC3() && /\b(?:cerradora|mantenimiento|parada\s+de\s+2|por\s+que\s+falta\s+evaporada)\b/.test(d.textoNormalizado);
   const cerrado=q?.estado==='CONFIRMADA';
-  const precios=!limiteDescuento && (pidePrecio(texto)||(interpretacion.motor==='groq'&&interpretacion.accion==='precio'&&/\b(?:cuant\w*|val\w*|cost\w*|prec\w*|importe|soles|monto|pag\w*)\b/.test(d.textoNormalizado)));
+  const precioIA=['deepseek','groq'].includes(interpretacion.proveedor_ia)&&interpretacion.accion==='precio'
+    &&(/[¿?]/.test(texto)||/\b(?:dime|me dices|puedes decir|informame|cuanto|tarifa|precio|costo)\b/.test(d.textoNormalizado))
+    &&!/\b(?:descuento|rebaja|credito|fecha|entrega|stock|inventario|disponib\w*)\b/.test(d.textoNormalizado);
+  const precios=!limiteDescuento && (pidePrecio(texto)||precioIA);
   const orientacion=!precios && pideOrientacion(texto);
   const propuestaPedido=(cerrado||consultaEstado||limiteDescuento||precios||orientacion||solicitaPC3)?null:interpretarPedidoNuevo(texto,estado,q,interpretacion);
   const pideLeche=!precios && !propuestaPedido && !q && !productoDicho && !d.cantidad && quierePedirLeche(texto);
