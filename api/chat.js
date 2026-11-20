@@ -259,7 +259,7 @@ async function atender(req,res){
        if(!Number(err.status)||Number(err.status)>=500)throw err;
        estado.esperando='ELEGIR_FECHA';mensaje=`No puedo proponer ese reparto: ${err.message} ¿Qué otra fecha prefieres para cada leche?`;
      }
-   } else if(hablaEntrega && q.items?.length>1 && !d.fecha){
+   } else if(hablaEntrega && q.items?.length>1 && !repartoDetallado && (/(?:fresc\w*|evaporad\w*|\buht\b|\bentera\b)/.test(d.textoNormalizado)||!d.fecha) && d.modo!=='TODO_DESPUES'){
      estado.esperando='ELEGIR_FECHA';
      mensaje=`Para ${resumenLineas(q)}, dime una fecha para cada leche (por ejemplo: «fresca mañana y UHT el próximo sábado») o una sola fecha para todas. No cambiaré las cantidades.`;
    } else if(fechaRelativa){
