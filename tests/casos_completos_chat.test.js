@@ -79,8 +79,8 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   const cantidades=await paso('quiero 20 para frescas y para evaporada quiero 30',/20 cajas.*30 cajas/i);
   assert.deepEqual(cantidades.cotizacion.items.map(x=>[x.id_producto,x.cantidad]),[['PRD-003',20],['PRD-002',30]]);
   await paso('Lo antes posible',/fecha/i);
-  await paso('para cuando esta disponible?',/fecha de referencia/i);
-  await paso('la fecha?',/fecha de referencia/i);
+  await paso('para cuando esta disponible?',/Podríamos coordinar/i);
+  await paso('la fecha?',/Podríamos coordinar/i);
   const fecha=await paso('para el 17 de este mes',/2026-11-17/);
   assert.deepEqual(fecha.cotizacion.items.map(x=>x.cantidad),[20,30]);
   await paso('Acepto la entrega',/contado|cr[eé]dito/i);
@@ -89,7 +89,7 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   m.reiniciar(false);
   // Al aceptar una fecha de referencia solo se crea una propuesta, no un pedido.
   await paso('Necesito 100 cajas de leche UHT',/100 cajas.*UHT/i);
-  await paso('Lo antes posible',/fecha de referencia/i);
+  await paso('Lo antes posible',/Podríamos coordinar/i);
   const propuesta=await paso('Sí',/Propuesta/i);
   assert.equal(propuesta.cotizacion.entrega_aceptada,false);assert.equal(propuesta.cotizacion.estado,'BORRADOR');
   m.reiniciar(false);

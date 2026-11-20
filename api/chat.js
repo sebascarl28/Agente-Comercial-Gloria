@@ -13,7 +13,7 @@ import {atenderFechaRelativa,aclararFechaCantidad,preguntaFechaDisponible,respon
 import {interpretarPedidoNuevo,hayLineaNoReconocida} from '../lib/interpretacion-pedido.js';
 import {pidePrecio,preferenciasPrecio,respuestaPrecios,respuestaTotalCotizacion} from '../lib/precios-conversacion.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
-import {leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
+import {recuperarContexto,leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
 import {contextoCliente,crearCotizacion,crearCotizacionLineas,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea,cambiarLineas} from '../lib/service.js';
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura,MAX_DESCUENTO_AGENTE,MAX_DESCUENTO_JEFATURA} from '../lib/rules.js';
 import {siguientePaso,estadoComercial,pendientesDescuento,resumenHabilitado,firmaCondiciones,confirmacionVigente,creditoInsuficiente} from '../lib/negociacion.js';
@@ -122,6 +122,7 @@ async function atender(req,res){
   }
   const ultimoAgente=[...(Array.isArray(sesion.mensajes)?sesion.mensajes:[])].reverse().find(x=>x.rol==='agente')?.texto||'';
   estado.hoy=fechaLimaHoy();
+  recuperarContexto(Array.isArray(sesion.mensajes)?sesion.mensajes:[],estado,q);
   if(q&&!estado.producto)estado.producto=q.id_producto;
   const interpretacion=await interpretar(texto,{
    cliente:contexto.cliente.razon_social,credito:contexto.cliente.linea_credito,fecha_hoy:estado.hoy,
@@ -392,7 +393,7 @@ async function atender(req,res){
    } else if(estado.esperando==='DESCUENTO_OPCIONAL' && (d.accion==='NO'||d.accion==='SIN_DESCUENTO')){
      estado.descuento_consultado=true;mensaje=`${Number(q?.descuento_pct)>0?`Sin problema, seguimos con el ${Number(q.descuento_pct)} % de descuento que ya tienes.`:'Sin problema, lo dejamos sin descuento.'} ${siguienteNatural(q,estado)}`;
    } else if(estado.esperando==='PEDIR_FECHA_EXACTA' && q && !q.entregas?.length && esConfirmacionCorta(texto) &&
-      estado.fecha_referencia?.fecha && Number(estado.fecha_referencia.version)===Number(q.version) && /quieres que revise esa fecha/i.test(ultimoAgente)){
+      estado.fecha_referencia?.fecha && Number(estado.fecha_referencia.version)===Number(q.version) && /quieres que revise esa fecha|te sirve esa fecha/i.test(ultimoAgente)){
      const r=await proponerEntrega(q.id_cotizacion,{modo:'TODO_DESPUES',fecha:estado.fecha_referencia.fecha});
      q=r.cotizacion;estado.esperando='ACEPTAR_ENTREGA';delete estado.fecha_referencia;mensaje=r.mensaje;
    } else if(estado.esperando==='ELEGIR_ENTREGA' && q && d.accion==='SI'){
@@ -456,7 +457,13 @@ async function atender(req,res){
    } else if(d.accion==='CATALOGO'){
      mensaje='Tenemos leche UHT entera 1 L, evaporada 400 g y fresca 1 L. También puedo consultar stock y precios sin que tengas que crear un pedido. ¿Cuál te interesa?';
    } else if(d.accion==='ENTREGA' || d.accion==='FECHA' || d.accion==='FECHA_RELATIVA'){
-     if(!q){estado.esperando=estado.producto?'PEDIR_CANTIDAD':'PEDIR_PRODUCTO';mensaje=estado.producto?`¿Cuántas cajas de ${nombres[estado.producto]} necesitas?`:'¿Qué leche y cuántas cajas necesitas?';}
+     if(!q&&estado.producto&&estado.cantidad_pendiente){
+       // Ya había dicho qué leche y cuántas cajas: se registra y se responde la fecha, sin volver a preguntar.
+       const cantidad=estado.cantidad_pendiente;
+       q=await nuevaCotizacion(estado.producto,cantidad);
+       mensaje=`Anoté ${cantidad} cajas de ${nombres[estado.producto]}. ${responderFechaDisponible(q,estado)}`;
+     }
+     else if(!q){estado.esperando=estado.producto?'PEDIR_CANTIDAD':'PEDIR_PRODUCTO';mensaje=estado.producto?`¿Cuántas cajas de ${nombres[estado.producto]} necesitas?`:'¿Qué leche y cuántas cajas necesitas?';}
      else {
        const s=cobertura(q);
        if(s.sin_cobertura>0){mensaje=(d.modo==='TODO_DESPUES'?'No puedo ofrecer la entrega completa con el plan actual. ':'')+propuesta(q,estado);}
