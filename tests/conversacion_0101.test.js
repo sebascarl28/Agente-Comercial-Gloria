@@ -43,6 +43,7 @@ test('Leche escrita pegada y aclaración posterior conservan las cajas por sumar
  const otro={propuesta_productos:[{id:'PRD-003',cantidad:20},{id:'PRD-002',cantidad:10}]};
  interpretarPedidoNuevo('súmale 5 cajas',otro,null,{});
  assert.deepEqual(otro.ajuste_pendiente,{cantidad:5,modo:'AGREGAR'});
+ assert.equal(interpretarPedidoNuevo('Sí',otro,null,{}).operaciones,undefined);
  interpretarPedidoNuevo('a la de leche evaporada',otro,null,{});
  assert.deepEqual(pares(otro.propuesta_productos),[['PRD-003',20],['PRD-002',15]]);
 });
