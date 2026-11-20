@@ -48,3 +48,19 @@
 - `POST /api/gestion` — decisión humana, requiere PIN específico.
 
 **Importante:** prototipo académico, no apto para uso comercial real con personas y dinero verdaderos sin seguridad, auditoría, infraestructura y aprobación institucional adicionales.
+
+
+## Reglas flexibles: la IA propone, las reglas validan
+
+El agente sigue siendo controlable: **las reglas deciden y ejecutan** (stock, precios, crédito, descuentos, aprobaciones y registro del pedido). Lo que se flexibiliza es cómo se **entiende** al cliente.
+
+1. **Reglas tolerantes.** Un sí o un no admite relleno y cortesía («sí, por favor», «claro que sí», «bueno, ya», «no gracias», «mejor no»), sin depender de la IA.
+2. **La IA ayuda a entender lo que las reglas no reconocen**, solo si se cumplen todas estas condiciones:
+   - el agente acaba de hacer una pregunta de sí o no (aceptar entrega, descuento, dirección, confirmar producto…);
+   - hay un proveedor de IA activo y esa IA interpretó «aceptar» o «rechazar»;
+   - el mensaje es corto, sin cifras, preguntas ni condiciones («pero», «solo si», «cambiar»…); en ese caso el agente pregunta de nuevo.
+3. **Fechas.** Si las reglas no entienden una fecha («pasando el feriado largo») la IA puede proponerla, pero se valida igual: nunca una fecha pasada, a lo sumo dentro de un año y solo si el mensaje habla de fechas.
+4. **Lo que nunca depende de la IA:** la confirmación final del pedido (exige un «sí» explícito después del resumen), los montos, las reservas de stock y la autoridad de aprobación (Jefatura y Finanzas).
+5. **Trazabilidad.** Cada respuesta del agente registra en la bitácora si se interpretó solo con reglas («Reglas ERP/CRM verificadas») o con apoyo de la IA («Interpretación de la IA validada por reglas ERP/CRM»).
+
+Código: `lib/flexibilidad.js` (aceptación y rechazo), `lib/dialogo.js` (fechas) y `api/chat.js` (integración). Pruebas: `tests/reglas_flexibles.test.js`.
