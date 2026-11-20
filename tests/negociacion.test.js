@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {listaPendientes,resumenHabilitado,siguientePaso,estadoComercial} from '../lib/negociacion.js';
 import {respaldo,temaConsulta,fechaEscrita} from '../lib/ai.js';
+import {leerTurno,esAceptacionEntrega} from '../lib/dialogo.js';
 import {readFileSync} from 'node:fs';
 const q={id_cotizacion:'demo-1',version:3,estado:'EN_NEGOCIACION',producto_nombre:'Leche UHT Gloria Entera 1 L',cantidad:300,descuento_pct:0,total:21240,forma_pago:'SIN_DEFINIR',direccion:'Av. Ejemplo 2450',distrito:'Ate',direccion_confirmada:false,entregas:[],entrega_aceptada:false,aprobaciones:[],linea_credito:30000,deuda_vigente:0};
 test('No permite mostrar resumen si faltan entregas, pago o dirección',()=>{
@@ -36,6 +37,28 @@ test('Interpreta fechas de cliente sin inventar despacho',()=>{
   assert.equal(fechaEscrita('el 20 de noviembre','2026-11-13'),'2026-11-20');
   assert.equal(fechaEscrita('19/11/2026','2026-11-13'),'2026-11-19');
   assert.equal(fechaEscrita('mañana','2026-11-13'),'2026-11-14');
+});
+test('Una fecha escrita de varias formas y el viernes siguiente conservan el día solicitado',()=>{
+  const hoy='2026-11-19',cotizacion={...q,items:[{id_producto:'PRD-002',cantidad:30},{id_producto:'PRD-003',cantidad:25}],entregas:[]};
+  for(const frase of ['27 de noviembre','27 de novimebre','el 27 del 11 del 2026','27/11/2026','la siguiente semana, un viernes puede ser?']){
+    const turno=leerTurno(frase,{estado:{hoy,esperando:'ELEGIR_FECHA'},cotizacion,interpretacion:{accion:'conversar'}});
+    assert.equal(turno.fecha,'2026-11-27',frase);assert.equal(turno.accion,'FECHA',frase);
+  }
+  assert.equal(fechaEscrita('viernes de la siguiente semana','2026-11-19'),'2026-11-27');
+  assert.equal(fechaEscrita('viernes','2026-11-19'),'2026-11-20');
+  assert.equal(esAceptacionEntrega('sí, de acuerdo con esa fecha'),true);
+});
+test('El estado de Jefatura informa la observación real y distingue contraoferta y rechazo',()=>{
+  const comentario='El margen de leche fresca solo permite 6 %';
+  const oferta={...q,aprobaciones:[{estado:'OFERTADO',solicitado_pct:8,ofrecido_pct:6,comentario}]};
+  const respuesta=estadoComercial({q:oferta,contexto:{},tema:'descuento'});
+  assert.match(respuesta,/Solicitaste 8%.*ofrece 6%/);
+  assert.match(respuesta,/El margen de leche fresca solo permite 6 %/);
+  const rechazo={...q,aprobaciones:[{estado:'RECHAZADA_JEFATURA',solicitado_pct:8,comentario:'No cumple margen mínimo'}]};
+  assert.match(estadoComercial({q:rechazo,contexto:{},tema:'descuento'}),/No cumple margen mínimo/);
+  assert.equal(temaConsulta('¿Por qué rechazó Jefatura mi descuento?'),'descuento');
+  const credito=estadoComercial({q,contexto:{cliente:{linea_credito:30000},creditos:[{estado:'RECHAZADA_FINANZAS',comentario:'Saldo vencido'}]},tema:'credito'});
+  assert.match(credito,/Saldo vencido/);
 });
 test('Conserva aislamiento por sesión y oculta resumen incompleto en frontend',()=>{
   const s=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
