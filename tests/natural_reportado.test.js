@@ -48,6 +48,13 @@ test('Con mi crédito aprobado selecciona pago solo en el contexto apropiado',()
  assert.equal(leerTurno('Con mi crédito aprobado',{estado}).pago,'CREDITO');
  assert.equal(esPagoCredito('¿puedo pagar con mi crédito aprobado?',true),false);
  assert.equal(leerTurno('¿ya aprobaron mi crédito?',{estado}).accion,'CONSULTAR');
+ for(const frase of ['uso mi credito mejor','usar mi crédito','prefiero pagar con mi línea de crédito']){
+   const turno=leerTurno(frase,{estado});assert.equal(turno.accion,'PAGO',frase);assert.equal(turno.pago,'CREDITO',frase);
+ }
+ assert.equal(esPagoCredito('no quiero usar mi crédito',true),false);
+ const ia={accion:'pago',modalidad:'CREDITO',proveedor_ia:'deepseek'};
+ assert.equal(leerTurno('me quedo con la línea aprobada',{estado,interpretacion:ia}).pago,'CREDITO');
+ assert.equal(leerTurno('¿me quedo con la línea aprobada?',{estado,interpretacion:ia}).pago,null);
 });
 test('Cuándo está disponible informa fecha referencial sin crear entrega',async()=>{
  const q={items:[{cantidad:20,disponibilidad:{disponibles:90,planes:[]}},{cantidad:50,disponibilidad:{disponibles:300,planes:[]}}],entregas:[]};
