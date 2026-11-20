@@ -38,6 +38,14 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
  async crearCotizacion(cliente,id,n){this.q={id_cotizacion:idQ,id_cliente:cliente,id_producto:id,estado:'BORRADOR',version:1,items:[{id_producto:id,cantidad:n,producto_nombre:defs[id].nombre}],descuento_pct:0,entregas:[],entrega_aceptada:false,forma_pago:'SIN_DEFINIR',direccion:'Av. Ejemplo 2450',distrito:'Ate',id_direccion:'DIR-LA-01',direccion_confirmada:false,linea_credito:30000,deuda_vigente:0,aprobaciones:[]};return this.actualizar();},
  async crearCotizacionLineas(cliente,items){await this.crearCotizacion(cliente,items[0].id,items[0].cantidad);for(const x of items.slice(1))await this.cambiarLinea(idQ,x.id,x.cantidad,{modo:'AGREGAR'});return this.actualizar();},
  async cambiarLinea(id,prod,n,{modo}={}){let x=this.q.items.find(y=>y.id_producto===prod);if(x)x.cantidad=modo==='AGREGAR'?x.cantidad+n:n;else this.q.items.push({id_producto:prod,cantidad:n,producto_nombre:defs[prod].nombre});this.q.version++;return this.actualizar();},
+ async cambiarLineas(id,items,{modo,version}={}){
+  assert.equal(this.q.version,version);
+  for(const item of items){const actual=this.q.items.find(x=>x.id_producto===item.id);
+   if(actual)actual.cantidad=modo==='AGREGAR'?actual.cantidad+item.cantidad:item.cantidad;
+   else this.q.items.push({id_producto:item.id,cantidad:item.cantidad,producto_nombre:defs[item.id].nombre});}
+  this.q.entregas=[];this.q.entrega_aceptada=false;this.q.descuento_pct=0;this.q.version++;
+  return this.actualizar();
+ },
  async proponerEntrega(id,datos){
   let partes;if(this.pc3&&this.q.items.length===3&&datos.modo==='DOS_PARTES')partes=[{id_producto:'PRD-001',cajas:180,fecha:'2026-11-16',origen:'STOCK'},{id_producto:'PRD-002',cajas:40,fecha:'2026-11-16',origen:'STOCK'},{id_producto:'PRD-003',cajas:120,fecha:'2026-11-16',origen:'STOCK'},{id_producto:'PRD-002',cajas:20,fecha:'2026-11-17',origen:'PRODUCCION'}];
   else partes=this.q.items.map(x=>({id_producto:x.id_producto,cajas:x.cantidad,fecha:datos.fecha,origen:'STOCK'}));
@@ -86,6 +94,22 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   await paso('Acepto la entrega',/contado|cr[eé]dito/i);
   const credito=await paso('Con mi crédito aprobado',/cr[eé]dito/i);
   assert.equal(credito.cotizacion.forma_pago,'CREDITO');
+  m.reiniciar(false);
+  // Frases del chat real: añade a fresca sin reemplazar evaporada y confirma
+  // entrega y crédito con lenguaje cotidiano.
+  const inicial=await paso('quiero 20 cajas de leche fresca y 10 cajas de leche evaporada',/20 cajas.*10 cajas/i);
+  assert.deepEqual(inicial.cotizacion.items.map(x=>[x.id_producto,x.cantidad]),[['PRD-003',20],['PRD-002',10]]);
+  const agregado=await paso('oye puede agregarle 10 cajas mas de leceh fresca',/30 cajas.*10 cajas/i);
+  assert.deepEqual(agregado.cotizacion.items.map(x=>[x.id_producto,x.cantidad]),[['PRD-003',30],['PRD-002',10]]);
+  await paso('para el 27 de noviembre',/2026-11-27/);
+  const fechaAceptada=await paso('acepto esa fehca',/pagar|cr[eé]dito|contado/i);
+  assert.equal(fechaAceptada.cotizacion.entrega_aceptada,true);
+  const creditoNatural=await paso('uso mi credito mejor',/cr[eé]dito/i);
+  assert.equal(creditoNatural.cotizacion.forma_pago,'CREDITO');
+  m.reiniciar(false);
+  await paso('quiero 20 cajas de leche fresca y 10 cajas de leche evaporada',/20 cajas.*10 cajas/i);
+  await paso('para el 27 de noviembre',/2026-11-27/);
+  assert.equal((await paso('si okey',/pagar|cr[eé]dito|contado/i)).cotizacion.entrega_aceptada,true);
   m.reiniciar(false);
   // Al aceptar una fecha de referencia solo se crea una propuesta, no un pedido.
   await paso('Necesito 100 cajas de leche UHT',/100 cajas.*UHT/i);
