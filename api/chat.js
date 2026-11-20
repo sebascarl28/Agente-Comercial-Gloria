@@ -18,7 +18,8 @@ import {contextoCliente,crearCotizacion,crearCotizacionLineas,modificarCotizacio
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura,MAX_DESCUENTO_AGENTE,MAX_DESCUENTO_JEFATURA} from '../lib/rules.js';
 import {siguientePaso,estadoComercial,pendientesDescuento,resumenHabilitado,firmaCondiciones,confirmacionVigente,creditoInsuficiente} from '../lib/negociacion.js';
 
-const fecha=x=>!x?null:fechaLarga(typeof x==='string'?x.slice(0,10):new Date(x).toISOString().slice(0,10));
+let hoyRef=null;
+const fecha=x=>!x?null:fechaLarga(typeof x==='string'?x.slice(0,10):new Date(x).toISOString().slice(0,10),hoyRef);
 const nombres={'PRD-001':'leche UHT entera','PRD-002':'leche evaporada','PRD-003':'leche fresca'};
 function resumenStock(prod,d){
   const planes=(d.planes||[]).filter(x=>Number(x.libres)>0).sort((a,b)=>String(a.fecha_disponibilidad).localeCompare(String(b.fecha_disponibilidad)));
@@ -121,7 +122,7 @@ async function atender(req,res){
     estado={cotizacion_anterior:q?.id_cotizacion||estado.cotizacion_anterior,cotizaciones_anteriores:anteriores,esperando:'PEDIR_PRODUCTO'};q=null;
   }
   const ultimoAgente=[...(Array.isArray(sesion.mensajes)?sesion.mensajes:[])].reverse().find(x=>x.rol==='agente')?.texto||'';
-  estado.hoy=fechaLimaHoy();
+  estado.hoy=fechaLimaHoy();hoyRef=estado.hoy;
   recuperarContexto(Array.isArray(sesion.mensajes)?sesion.mensajes:[],estado,q);
   if(q&&!estado.producto)estado.producto=q.id_producto;
   const interpretacion=await interpretar(texto,{
@@ -163,6 +164,10 @@ async function atender(req,res){
    // cobertura, nunca se convierte un «sí» genérico en pedido confirmado.
    if(limiteDescuento){
      mensaje=`Puedo ofrecer hasta ${MAX_DESCUENTO_AGENTE}% de descuento, siempre que el margen lo permita. Para más de ${MAX_DESCUENTO_AGENTE}% y hasta ${MAX_DESCUENTO_JEFATURA}%, lo evalúa Jefatura Comercial. ¿Qué porcentaje deseas solicitar?`;
+   } else if(d.fechaPasada && !cerrado){
+     // Nunca se acepta ni se propone una fecha que ya pasó.
+     if(q)estado.esperando='ELEGIR_FECHA';
+     mensaje=`El ${fecha(d.fechaPasada)} ya pasó (hoy es ${fecha(estado.hoy)}). ¿Para qué día te gustaría recibirlo? Puedes decirme, por ejemplo, «mañana», «el viernes» o una fecha exacta.`;
    } else if(preguntaMantenimiento){
      // Explicación del caso: puede pedirse antes o después de cerrar el pedido.
      mensaje=`En el caso de demostración, la cerradora de latas tiene una parada programada de 2 horas el ${fecha(fechaCortePC3())} (VEN-CIE-001). Con ella, la capacidad de la línea baja de 19,200 a 17,600 cajas frente a 18,000 de carga: una brecha total de 400 cajas. Para La Alameda eso se traduce en un faltante de 20 cajas de evaporada el ${fecha(primeraEntregaPC3())}, que se cubren con la orden de producción OP-EVA-1711 el ${fecha(segundaEntregaPC3())}. Las 400 cajas son la brecha de capacidad de toda la línea; no son 400 cajas faltantes del pedido.`;
@@ -346,8 +351,7 @@ async function atender(req,res){
      // No regenerar cotización ni repetir el mismo texto: pedir consentimiento explícito.
      estado.esperando='ACEPTAR_ENTREGA';
      const total=q.entregas.reduce((n,x)=>n+Number(x.cajas||0),0);
-     const f=d.fecha.split('-').reverse().join('/');
-     mensaje=`Sí, el ${f} ya está anotado en nuestra propuesta para las ${total} cajas. Aún no la he confirmado porque necesito tu aceptación. ¿Estás de acuerdo con esa entrega? Puedes responder «Acepto» o pedirme otra fecha.`;
+     mensaje=`Sí, el ${fecha(d.fecha)} ya está anotado en nuestra propuesta para las ${total} cajas. Aún no la he confirmado porque necesito tu aceptación. ¿Estás de acuerdo con esa entrega? Puedes responder «Acepto» o pedirme otra fecha.`;
    } else if(q && d.accion==='ENTREGA' && q.items?.length>1 || q && (d.accion==='FECHA'||d.accion==='FECHA_RELATIVA') && q.items?.length>1){
      const faltan=q.items.filter(x=>x.cantidad>x.disponibilidad.disponibles+x.disponibilidad.planificadas);
      if(faltan.length)mensaje=`Antes de coordinar, falta cobertura de ${faltan.map(x=>x.producto_nombre).join(' y ')}. Puedo ayudarte a ajustar las cajas.`;
@@ -553,7 +557,7 @@ async function atender(req,res){
    } else {
      const ap=pendientesDescuento(q);
      if(q&&ap){mensaje=estadoComercial({q,contexto,tema:'descuento'});}
-     else mensaje=interpretacion.respuesta_libre||'Con gusto te atiendo. ¿Qué leche y cuántas cajas deseas cotizar?';
+     else mensaje=interpretacion.respuesta_libre||'Con gusto te ayudo. ¿Qué leche te interesa (UHT, evaporada o fresca) y cuántas cajas necesitas?';
    }
   }catch(err){
     if(Number(err?.status)>=500)throw err;

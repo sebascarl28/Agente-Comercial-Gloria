@@ -76,6 +76,6 @@ test('La explicación del mantenimiento funciona también con el pedido ya cerra
 test('En el modo PC3 hay un botón que inicia el caso con un solo clic',()=>{
   const ui=leer('../public/app.js');
   assert.match(ui,/Iniciar caso PC3/);
-  assert.match(ui,/\['▶ Iniciar caso PC3 \(360 cajas\)','Quiero preparar el caso PC3 del informe'\]/);
+  assert.doesNotMatch(ui,/\['▶ Iniciar caso PC3/,'el botón vive solo en el recuadro del escenario, no repetido en las sugerencias del chat');
   assert.match(ui,/data-chat-suggest="Quiero preparar el caso PC3 del informe"/);
 });

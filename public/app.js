@@ -124,7 +124,6 @@ function sugerenciasDelMomento(q){
   if(espera==='CONFIRMAR_PEDIDO'&&mostrarResumenFinal(q))return [['Confirmar pedido','Sí'],['Cambiar algo','Quiero modificar mi cotización']];
   if(espera==='ACLARAR_FECHA')return [['Vencimiento','Fecha de vencimiento'],['Entrega','Fecha de entrega']];
   if(espera==='REDUCIR_CANTIDAD'&&q)return [['Mantener cantidad','Quiero mantener el pedido completo'],['Entrega parcial','Prefiero entrega parcial'],['Revisar Planeamiento','Consultar Planeamiento']];
-  if(!q&&typeof ES_CASO_PC3!=='undefined'&&ES_CASO_PC3)return [['▶ Iniciar caso PC3 (360 cajas)','Quiero preparar el caso PC3 del informe'],['Ver tipos de leche','¿Qué leches tienes?'],['Consultar stock','¿Qué stock tienes de leche UHT?']];
   if(!q)return [['Ver tipos de leche','¿Qué leches tienes?'],['Consultar stock','¿Qué stock tienes de leche UHT?'],['Cotizar leche fresca','Quiero cotizar leche fresca']];
   if(!q.entregas?.length)return [['Añadir otra leche','¿Puedo añadir otro producto?'],['Modificar cantidades','Quiero modificar'],['¿Qué stock hay?','¿Qué stock tienes del producto?'],['Negociar entrega','Quiero acordar una fecha de entrega']];
   if(!q.entrega_aceptada)return [['Aceptar propuesta','Acepto la entrega'],['Cambiar fechas','Quiero cambiar las fechas']];

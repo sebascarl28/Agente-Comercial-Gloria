@@ -95,6 +95,7 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   m.reiniciar(false);
   // Caso 1: venta normal completa.
   await paso('Necesito 100 cajas de leche UHT',/100 cajas.*UHT/i);
+  await paso('lo quiero para el 10/11',/ya pas[oó]/i);
   await paso('Lo quiero para el 16 de noviembre de 2026',/100 cajas.*2026-11-16/i);
   await paso('Acepto',/acept[oó].*entrega/i);
   await paso('Pago al contado',/contado/i);
