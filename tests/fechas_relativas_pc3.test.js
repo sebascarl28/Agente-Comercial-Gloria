@@ -80,11 +80,11 @@ test('En el modo PC3 hay un botón que inicia el caso con un solo clic',()=>{
   assert.match(ui,/data-chat-suggest="Quiero preparar el caso PC3 del informe"/);
 });
 
-test('El caso PC3 se ubica en el mes siguiente: primer día hábil desde el día 10',()=>{
-  assert.equal(corteSimulacionPC3('2026-11-20'),'2026-12-10');
-  assert.equal(corteSimulacionPC3('2026-12-12'),'2027-01-11','en diciembre pasa a enero (el 10 es domingo)');
-  assert.equal(corteSimulacionPC3('2026-11-01'),'2026-12-10');
-  const f=fechasEscenarioPC3('2026-12-10');
+test('El caso PC3 se ubica en el mes siguiente: primer viernes hábil desde el día 10',()=>{
+  assert.equal(corteSimulacionPC3('2026-11-20'),'2026-12-11');
+  assert.equal(corteSimulacionPC3('2026-12-12'),'2027-01-15','en diciembre pasa a enero (el primer viernes desde el 10 es el 15)');
+  assert.equal(corteSimulacionPC3('2026-11-01'),'2026-12-11');
+  const f=fechasEscenarioPC3('2026-12-11');
   assert.deepEqual([f.primera,f.segunda,f.uhtProd,f.uhtDisp],['2026-12-14','2026-12-15','2026-12-16','2026-12-17']);
 });
 test('Las fechas del caso nunca caen en fin de semana ni en feriado, cualquiera sea el día real (2026-2028)',()=>{
@@ -92,6 +92,8 @@ test('Las fechas del caso nunca caen en fin de semana ni en feriado, cualquiera 
     const real=new Date(Date.UTC(2026,0,1+dia,12)).toISOString().slice(0,10);
     const corte=corteSimulacionPC3(real);
     assert.ok(corte>real&&corte.slice(0,7)>real.slice(0,7),`${real}: el corte ${corte} debe estar en un mes posterior`);
+    assert.equal(diaSemana(corte),5,`${real}: la parada ${corte} debe ser viernes, como en el informe`);
+    assert.equal(diaSemana(fechasEscenarioPC3(corte).primera),1,`${real}: la primera entrega debe ser lunes`);
     const f=fechasEscenarioPC3(corte);
     for(const [nombre,fecha] of Object.entries({corte,primera:f.primera,segunda:f.segunda,uhtProd:f.uhtProd,uhtDisp:f.uhtDisp})){
       assert.ok(![0,6].includes(diaSemana(fecha)),`${real}: ${nombre}=${fecha} cae en fin de semana`);
