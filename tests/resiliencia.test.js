@@ -59,11 +59,18 @@ test('Si Groq falla se usa DeepSeek de respaldo con JSON y sin razonamiento',()=
   assert.equal(ds.u,'https://api.deepseek.com/chat/completions');assert.equal(ds.auth,'Bearer clave-deepseek');
   assert.equal(ds.cuerpo.response_format.type,'json_object');assert.deepEqual(ds.cuerpo.thinking,{type:'disabled'});
   assert.match(JSON.stringify(ds.cuerpo.messages[0].content),/JSON/);
+  assert.equal(llamadas.length,1,'DeepSeek responde primero sin consumir Groq');
 }));
-test('Con la clave de Groq inválida se prueba DeepSeek y una respuesta en blanco se descarta',()=>conEntorno({GROQ_API_KEY:'mala',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+test('Si DeepSeek falla se prueba Groq',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  const proveedores=[];
+  globalThis.fetch=async(u)=>{proveedores.push(u.includes('deepseek')?'deepseek':'groq');return u.includes('deepseek')?json({error:{code:'x'}},503):buena('Hola desde Groq');};
+  const r=await interpretar('hola asesor');
+  assert.deepEqual(proveedores,['deepseek','groq']);assert.equal(r.proveedor_ia,'groq');
+}));
+test('Si DeepSeek responde en blanco y la clave de Groq es inválida se usan reglas locales',()=>conEntorno({GROQ_API_KEY:'mala',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
   let groq=0;
   globalThis.fetch=async(u)=>{if(u.includes('groq')){groq++;return json({error:{code:'invalid_api_key'}},401);}return json({choices:[{message:{content:'    '}}]});};
   const r=await interpretar('hola asesor');
   assert.equal(groq,1,'una clave inválida no se prueba con el otro modelo de Groq');
-  assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/JSON inválida/);
+  assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/HTTP 401/);
 }));
