@@ -8,6 +8,7 @@ import {respuesta,errorJson,metodo,falla,obligatorio} from '../lib/http.js';
 import {interpretar} from '../lib/ai.js';
 import {avanzarSeleccion} from '../lib/seleccion-productos.js';
 import {interpretarCambio} from '../lib/cambios-conversacion.js';
+import {repartoPorProducto,pideReparto} from '../lib/entregas-conversacion.js';
 import {pideOrientacion,recomendacionProducto,quierePedirLeche} from '../lib/orientacion.js';
 import {atenderFechaRelativa,aclararFechaCantidad,preguntaFechaDisponible,responderFechaDisponible} from '../lib/fechas-conversacion.js';
 import {interpretarPedidoNuevo,hayLineaNoReconocida} from '../lib/interpretacion-pedido.js';
@@ -159,10 +160,12 @@ async function atender(req,res){
   const propuestaPedido=(cerrado||consultaEstado||limiteDescuento||precios||orientacion||solicitaPC3)?null:interpretarPedidoNuevo(texto,estado,q,interpretacion);
   const pideLeche=!precios && !propuestaPedido && !q && !productoDicho && !d.cantidad && quierePedirLeche(texto);
   const fechaRelativa=!!q && q.estado!=='CONFIRMADA' && d.accion==='FECHA_RELATIVA';
+  const repartoDetallado=q?.estado!=='CONFIRMADA'&&q?.items?.length>1?repartoPorProducto(texto,q,estado.hoy):null;
+  const hablaEntrega=!!q && pideReparto(texto) && !/\b(?:cambiar|modificar|agregar|sumar)\s+(?:las?\s+)?cantidades\b/.test(d.textoNormalizado);
   const aclaracionFecha=q?aclararFechaCantidad(texto,estado,q):null;
-  const cambio=(cerrado||consultaEstado||limiteDescuento||consultaFecha||precios||propuestaPedido||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:interpretarCambio(texto,estado,q,interpretacion);
-  const pedidoInseguro=!precios && !cambio && !!q && !d.modo && !d.fecha && !fechaRelativa && !esConsultaStock(texto) && !esPreguntaFaltanteEntrega(texto) && hayLineaNoReconocida(texto);
-  const seleccion=(cerrado||consultaEstado||limiteDescuento||consultaFecha||precios||propuestaPedido||pedidoInseguro||cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:avanzarSeleccion(texto,estado,q,interpretacion);
+  const cambio=(cerrado||consultaEstado||limiteDescuento||consultaFecha||precios||propuestaPedido||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha||hablaEntrega)?null:interpretarCambio(texto,estado,q,interpretacion);
+  const pedidoInseguro=!precios && !cambio && !!q && !hablaEntrega && !d.modo && !d.fecha && !fechaRelativa && !esConsultaStock(texto) && !esPreguntaFaltanteEntrega(texto) && hayLineaNoReconocida(texto);
+  const seleccion=(cerrado||consultaEstado||limiteDescuento||consultaFecha||precios||propuestaPedido||pedidoInseguro||cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha||hablaEntrega)?null:avanzarSeleccion(texto,estado,q,interpretacion);
   if(productoDicho && !q && !precios && !propuestaPedido)estado.producto=productoDicho;
   let mensaje='',observacion=(confirmacion?.via==='ia'||d.fechaViaIA)?'Interpretación de la IA validada por reglas ERP/CRM':'Reglas ERP/CRM verificadas';
   const mayorDeUno=ctx=>ctx.cantidad_pendiente&&ctx.cantidad_pendiente>0;
@@ -218,7 +221,7 @@ async function atender(req,res){
      estado.producto='PRD-002';estado.esperando='ACEPTAR_ENTREGA';
      const f1=fecha(primeraEntregaPC3()),f2=fecha(segundaEntregaPC3());
      mensaje=`Preparé el caso de demostración SOL-LA-002: 360 cajas (180 de leche UHT, 60 de evaporada de 400 g y 120 de fresca). Para el ${f1} tenemos listas 340. Las otras 20, de evaporada, estarán desde el ${f2} porque la línea de envasado tuvo una parada de mantenimiento de dos horas el ${fecha(fechaCortePC3())}. Quedan sujetas a la liberación de Calidad y a la confirmación del despacho. ¿Te parece recibir 340 cajas el ${f1} y las 20 restantes el ${f2}?`;
-   } else if(q?.entregas?.length && !q.entrega_aceptada && mencionaRepartoConAceptacion(texto)){
+   } else if(estado.esperando==='ACEPTAR_ENTREGA' && q?.entregas?.length && !q.entrega_aceptada && mencionaRepartoConAceptacion(texto)){
      if(aceptaRepartoPropuesto(texto,q.entregas)){
        const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;
        mensaje=`Perfecto: aceptaste el reparto de ${q.entregas.reduce((n,p)=>n+Number(p.cajas),0)} cajas en las fechas propuestas, sujeto a Calidad y logística.\n${siguienteNatural(q,estado)}`;
@@ -248,6 +251,17 @@ async function atender(req,res){
      mensaje=explicarStockDeCotizacion(q,productoDicho);
    } else if(aclaracionFecha){
      mensaje=aclaracionFecha;
+   } else if(repartoDetallado){
+     try{
+       const r=await proponerEntrega(q.id_cotizacion,{modo:'PERSONALIZADA',partes:repartoDetallado});q=r.cotizacion;
+       estado.esperando='ACEPTAR_ENTREGA';mensaje=r.mensaje;
+     }catch(err){
+       if(!Number(err.status)||Number(err.status)>=500)throw err;
+       estado.esperando='ELEGIR_FECHA';mensaje=`No puedo proponer ese reparto: ${err.message} ¿Qué otra fecha prefieres para cada leche?`;
+     }
+   } else if(hablaEntrega && q.items?.length>1 && !d.fecha){
+     estado.esperando='ELEGIR_FECHA';
+     mensaje=`Para ${resumenLineas(q)}, dime una fecha para cada leche (por ejemplo: «fresca mañana y UHT el próximo sábado») o una sola fecha para todas. No cambiaré las cantidades.`;
    } else if(fechaRelativa){
      // Si pide prontitud, dar una referencia sustentada, sin reservar ni prometer.
      if(d.periodo==='cuanto_antes' && !q.entregas?.length && (!d.cantidad||Number(d.cantidad)===Number(q.cantidad)))mensaje=responderFechaDisponible(q,estado);
@@ -264,8 +278,16 @@ async function atender(req,res){
        const anterior=q;
        q=await cambiarLineas(q.id_cotizacion,cambio.operaciones,{modo:cambio.modo,version:cambio.version});
        const revision=await revisarTrasCambio(anterior,q,estado,proponerEntrega);q=revision.cotizacion;
+       if(estado.descuento_pedido_en_cambio!=null || d.descuentoPct!=null){
+         const pct=d.descuentoPct??estado.descuento_pedido_en_cambio;
+         delete estado.descuento_pedido_en_cambio;
+         estado.descuento_por_renovar=pct;
+         estado.descuento_consultado=false;
+         if(revision.mensaje)revision.mensaje=revision.mensaje.replace(/Conservo tu elección de continuar sin descuento\.|Podrás elegir un descuento después de aceptar la entrega\./,'');
+         revision.mensaje=`${revision.mensaje||revision.aviso} Solicitaré el ${pct}% indicado tras validar las nuevas cantidades y aceptar la entrega.`;
+       }
        mensaje=`${cambio.modo==='AGREGAR'?'Sumé las cajas indicadas':'Actualicé tu cotización'}: ${resumenLineas(q)}. ${revision.mensaje||`${revision.aviso} ${propuesta(q,estado)}`}`;
-     }else mensaje=cambio.mensaje;
+     }else {if(d.descuentoPct!=null && /\b(?:descuento|rebaja)\b/.test(d.textoNormalizado))estado.descuento_pedido_en_cambio=d.descuentoPct;mensaje=cambio.mensaje;}
    } else if(seleccion){
      if(seleccion.operaciones){
        if((!q || q.estado==='CONFIRMADA') && seleccion.operaciones.length>1){
@@ -583,7 +605,7 @@ async function atender(req,res){
      else if(estado.esperando==='CAMBIAR_PRODUCTO'&&q&&esConfirmacionCorta(texto)){q=await nuevaCotizacion(estado.producto,q.cantidad);mensaje=propuesta(q,estado);}
      else if(ap?.estado==='OFERTADO'&&esAceptacionDescuento(texto)){const r=await clienteRespondeDescuento(ap.id_solicitud,true);q=r.cotizacion;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
      else if(credito&&/credito|finanzas/.test(estado.esperando||'')&&(esConfirmacionCorta(texto)||/^(?:si[, ]+)?(?:acepto|confirmo) (?:el |mi |la )?(?:oferta de )?credito\b/.test(d.textoNormalizado))){const r=await clienteRespondeCredito(credito.id_solicitud,true);mensaje=r.mensaje;}
-     else if(q?.entregas?.length&&!q.entrega_aceptada&&(esConfirmacionCorta(texto)||esAceptacionEntrega(texto))){const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
+     else if(estado.esperando==='ACEPTAR_ENTREGA'&&q?.entregas?.length&&!q.entrega_aceptada&&(esConfirmacionCorta(texto)||esAceptacionEntrega(texto))){const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
      else if(q&&!q.direccion_confirmada&&estado.esperando==='CONFIRMAR_DIRECCION'&&(esConfirmacionCorta(texto)||esAceptacionDireccion(texto))){const r=await confirmarDireccion(q.id_cotizacion,q.id_direccion);q=r.cotizacion;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
      else if(estado.esperando==='DESCUENTO_OPCIONAL'){estado.esperando='PEDIR_DESCUENTO';mensaje='¿Qué porcentaje de descuento deseas solicitar?';}
      else mensaje=q?siguienteNatural(q,estado):'De acuerdo. ¿Qué tipo de leche y cuántas cajas deseas?';
