@@ -7,12 +7,11 @@ import {readFileSync} from 'node:fs';
 const ui=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const chat=readFileSync(new URL('../api/chat.js',import.meta.url),'utf8');
 
-test('caso PC3 se puede iniciar escribiendo, sin pulsar un botón',()=>{
+test('caso PC3 se puede iniciar escribiendo o con el botón de inicio',()=>{
   assert.match(ui,/function solicitaCasoPC3\(texto/);
   assert.match(ui,/sessionStorage\.setItem\(PENDIENTE_MENSAJE_PC3,msg\)/);
   assert.match(ui,/location\.assign\('\/\?escenario=pc3'\)/);
   assert.match(ui,/await sendChat\(\)/);
-  assert.doesNotMatch(ui,/data-chat-suggest="Quiero preparar el caso PC3 del informe"/);
 });
 
 test('la respuesta del caso PC3 se activa por intención de preparar, no solo por mencionarlo',()=>{

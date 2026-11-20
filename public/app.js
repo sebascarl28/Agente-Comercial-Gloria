@@ -124,6 +124,7 @@ function sugerenciasDelMomento(q){
   if(espera==='CONFIRMAR_PEDIDO'&&mostrarResumenFinal(q))return [['Confirmar pedido','Sí'],['Cambiar algo','Quiero modificar mi cotización']];
   if(espera==='ACLARAR_FECHA')return [['Vencimiento','Fecha de vencimiento'],['Entrega','Fecha de entrega']];
   if(espera==='REDUCIR_CANTIDAD'&&q)return [['Mantener cantidad','Quiero mantener el pedido completo'],['Entrega parcial','Prefiero entrega parcial'],['Revisar Planeamiento','Consultar Planeamiento']];
+  if(!q&&typeof ES_CASO_PC3!=='undefined'&&ES_CASO_PC3)return [['▶ Iniciar caso PC3 (360 cajas)','Quiero preparar el caso PC3 del informe'],['Ver tipos de leche','¿Qué leches tienes?'],['Consultar stock','¿Qué stock tienes de leche UHT?']];
   if(!q)return [['Ver tipos de leche','¿Qué leches tienes?'],['Consultar stock','¿Qué stock tienes de leche UHT?'],['Cotizar leche fresca','Quiero cotizar leche fresca']];
   if(!q.entregas?.length)return [['Añadir otra leche','¿Puedo añadir otro producto?'],['Modificar cantidades','Quiero modificar'],['¿Qué stock hay?','¿Qué stock tienes del producto?'],['Negociar entrega','Quiero acordar una fecha de entrega']];
   if(!q.entrega_aceptada)return [['Aceptar propuesta','Acepto la entrega'],['Cambiar fechas','Quiero cambiar las fechas']];
@@ -139,7 +140,8 @@ function panelCasoPC3(){
     <summary style="cursor:pointer;font-weight:700">Caso PC3 · Datos del escenario (consulta opcional)</summary>
     <p style="margin:9px 0 5px">Solicitud: 180 cajas UHT, 60 de evaporada 400 g y 120 de fresca. Inventario liberado para el ${esc(f1)}: 340 de las 360 cajas. Las otras 20 son de evaporada y se prevén desde el ${esc(f2)} por OP-EVA-1711; no hay promesa de despacho.</p>
     <p style="margin:6px 0">Parada de cerradora: ${esc(m?.duracion_horas||2)} h el ${esc(hoy)} (día de la simulación). Capacidad: 19,200 → 17,600 cajas; brecha agregada: 400.</p>
-    <small>Información académica sintética. Para iniciar el caso escribe en el chat: «Quiero preparar el caso PC3 del informe». Luego pide la entrega para el ${esc(f1)}. Stock, Calidad, logística y aceptación se validan por separado.</small>
+    ${!quote()?'<button class="quick-btn" style="margin:8px 0 4px;font-size:15px;padding:11px 18px" data-chat-suggest="Quiero preparar el caso PC3 del informe">▶ Iniciar caso PC3 · 360 cajas</button><br>':''}
+    <small>Información académica sintética. Para iniciar el caso pulsa «Iniciar caso PC3» (o escribe «Quiero preparar el caso PC3 del informe») y acepta las entregas con los botones del chat. Stock, Calidad, logística y aceptación se validan por separado.</small>
   </details>`;
 }
 const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];

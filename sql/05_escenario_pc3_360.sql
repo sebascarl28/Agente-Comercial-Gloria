@@ -1,14 +1,12 @@
--- CASO PC3 OFICIAL, DATOS SINTÉTICOS DEL INFORME G6 (FECHAS RELATIVAS AL DÍA EN QUE SE CREA LA SESIÓN)
+-- CASO PC3 OFICIAL, DATOS SINTÉTICOS FIJOS DEL INFORME G6
 -- Ejecutar una vez DESPUÉS de 03_simulaciones_aisladas.sql y 04_cotizaciones_multiproducto.sql.
 -- Nunca cambia public.stock_lotes, public.productos, ni sesiones demo normales.
 -- Cada sesión con encabezado X-Demo-Scenario: pc3 recibe SU COPIA del escenario.
--- Día D = fecha de Lima al crear la sesión (queda guardada en pc3_mantenimiento.fecha y no avanza después).
--- Parada de la cerradora: D. Primera entrega pedida: D+3. Evaporada faltante prevista: D+4. Para el informe equivale a 13/11, 16/11 y 17/11.
+-- La fecha de corte del escenario es el 13/11/2026; no avanza con el reloj real.
 CREATE OR REPLACE FUNCTION public.demo_pc3_configurar(p_id uuid)
 RETURNS void LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
 DECLARE
   v_sc text;
-  v_d date := (now() AT TIME ZONE 'America/Lima')::date;
 BEGIN
   -- Serializa inicializaciones para evitar dos solicitudes simultáneas que sobrescriban stock.
   PERFORM pg_advisory_xact_lock(hashtextextended('caso-pc3-' || p_id::text, 0));
@@ -33,9 +31,9 @@ BEGIN
     INSERT INTO %I.pc3_mantenimiento
        (id_evento,id_activo,id_orden,fecha,duracion_horas,horas_turno,ritmo_cajas_h,orden_produccion,causa,estado)
     VALUES
-       ('VEN-CIE-001','ACT-EVA-CIE','OT-CIE-001',%L::date,2,8,800,
+       ('VEN-CIE-001','ACT-EVA-CIE','OT-CIE-001',DATE '2026-11-13',2,8,800,
         'OP-EVA-1711','Mantenimiento programado de la cerradora (simulación académica)','PROGRAMADO')
-  $q$,v_sc,v_d);
+  $q$,v_sc);
 
   -- Producto del informe: 400 g (no los 410 g que tenía la semilla anterior).
   EXECUTE format($q$
@@ -55,35 +53,35 @@ BEGIN
                            WHEN 'LOT-EVA-01' THEN 40
                            WHEN 'LOT-FRE-01' THEN 120 ELSE cajas END,
        calidad = CASE WHEN id_lote='LOT-UHT-02' THEN 'EN_INSPECCION' ELSE 'LIBERADO' END,
-       fecha_vencimiento = CASE WHEN id_lote='LOT-FRE-01' THEN %L::date
+       fecha_vencimiento = CASE WHEN id_lote='LOT-FRE-01' THEN DATE '2026-12-01'
                                 WHEN id_lote='LOT-UHT-01' THEN DATE '2027-05-12'
                                 WHEN id_lote='LOT-UHT-02' THEN DATE '2027-05-12'
                                 WHEN id_lote='LOT-EVA-01' THEN DATE '2027-08-10'
                                 ELSE fecha_vencimiento END,
        actualizado_en=now()
     WHERE id_lote IN ('LOT-UHT-01','LOT-UHT-02','LOT-EVA-01','LOT-FRE-01')
-  $q$,v_sc,v_d+18);
+  $q$,v_sc);
 
-  -- Los tres planes tienen fechas relativas al día D de la sesión, para que el caso sea coherente en cualquier exposición.
+  -- Los tres planes tienen fechas FIJAS para que no cambien en cada exposición.
   -- Solo 20 cajas de evaporada son necesarias para completar SOL-LA-002.
   EXECUTE format($q$
-    UPDATE %1$I.plan_produccion SET
+    UPDATE %I.plan_produccion SET
       cajas = CASE id_plan WHEN 'PPPI-EVA-01' THEN 20
                            WHEN 'PPPI-UHT-01' THEN 50
                            WHEN 'PPPI-FRE-01' THEN 60 ELSE cajas END,
-      fecha_produccion = CASE id_plan WHEN 'PPPI-EVA-01' THEN %2$L::date
-                                       WHEN 'PPPI-UHT-01' THEN %3$L::date
-                                       WHEN 'PPPI-FRE-01' THEN %2$L::date
+      fecha_produccion = CASE id_plan WHEN 'PPPI-EVA-01' THEN DATE '2026-11-16'
+                                       WHEN 'PPPI-UHT-01' THEN DATE '2026-11-18'
+                                       WHEN 'PPPI-FRE-01' THEN DATE '2026-11-16'
                                        ELSE fecha_produccion END,
-      fecha_disponibilidad = CASE id_plan WHEN 'PPPI-EVA-01' THEN %4$L::date
-                                           WHEN 'PPPI-UHT-01' THEN %5$L::date
-                                           WHEN 'PPPI-FRE-01' THEN %4$L::date
+      fecha_disponibilidad = CASE id_plan WHEN 'PPPI-EVA-01' THEN DATE '2026-11-17'
+                                           WHEN 'PPPI-UHT-01' THEN DATE '2026-11-19'
+                                           WHEN 'PPPI-FRE-01' THEN DATE '2026-11-17'
                                            ELSE fecha_disponibilidad END,
       referencia_pp_pi = CASE WHEN id_plan='PPPI-EVA-01' THEN 'OP-EVA-1711'
                              ELSE referencia_pp_pi END,
       estado='PROGRAMADO', requiere_liberacion_qm=true
     WHERE id_plan IN ('PPPI-UHT-01','PPPI-EVA-01','PPPI-FRE-01')
-  $q$,v_sc,v_d+3,v_d+5,v_d+4,v_d+6);
+  $q$,v_sc);
 END;
 $$;
 REVOKE ALL ON FUNCTION public.demo_pc3_configurar(uuid) FROM PUBLIC,anon,authenticated;
