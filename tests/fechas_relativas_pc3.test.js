@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {ejecutarEnEscenarioPC3,fechaCortePC3,primeraEntregaPC3,segundaEntregaPC3,fechasEscenarioPC3,sqlAjusteFechasPC3} from '../lib/escenario.js';
+import {ejecutarEnEscenarioPC3,fechaCortePC3,primeraEntregaPC3,segundaEntregaPC3,fechasEscenarioPC3,sqlAjusteFechasPC3,corteSimulacionPC3,esFeriadoPE} from '../lib/escenario.js';
 import {fechaLimaHoy,fechaPrimeraEntrega,repartoSugerido} from '../lib/rules.js';
 import {fechaLarga} from '../lib/formato.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
@@ -49,7 +49,7 @@ test('El ajuste de fechas se aplica desde la app, una vez por sesión y solo a l
   assert.throws(()=>sqlAjusteFechasPC3('public; DROP TABLE x','2026-11-19'));
   assert.throws(()=>sqlAjusteFechasPC3(esquema,"2026-11-19'; --"));
   const db=leer('../lib/db.js');
-  assert.match(db,/sqlAjusteFechasPC3\(sc,fechaLimaHoy\(\)\)/);
+  assert.match(db,/sqlAjusteFechasPC3\(sc,corteSimulacionPC3\(fechaLimaHoy\(\)\)\)/);
 });
 test('El SQL de instalación no cambia: conserva las fechas del informe como punto de partida',()=>{
   const sql=leer('../sql/05_escenario_pc3_360.sql');
@@ -78,4 +78,33 @@ test('En el modo PC3 hay un botón que inicia el caso con un solo clic',()=>{
   assert.match(ui,/Iniciar caso PC3/);
   assert.doesNotMatch(ui,/\['▶ Iniciar caso PC3/,'el botón vive solo en el recuadro del escenario, no repetido en las sugerencias del chat');
   assert.match(ui,/data-chat-suggest="Quiero preparar el caso PC3 del informe"/);
+});
+
+test('El caso PC3 se ubica en el mes siguiente: primer día hábil desde el día 10',()=>{
+  assert.equal(corteSimulacionPC3('2026-11-20'),'2026-12-10');
+  assert.equal(corteSimulacionPC3('2026-12-12'),'2027-01-11','en diciembre pasa a enero (el 10 es domingo)');
+  assert.equal(corteSimulacionPC3('2026-11-01'),'2026-12-10');
+  const f=fechasEscenarioPC3('2026-12-10');
+  assert.deepEqual([f.primera,f.segunda,f.uhtProd,f.uhtDisp],['2026-12-14','2026-12-15','2026-12-16','2026-12-17']);
+});
+test('Las fechas del caso nunca caen en fin de semana ni en feriado, cualquiera sea el día real (2026-2028)',()=>{
+  for(let dia=0;dia<1100;dia++){
+    const real=new Date(Date.UTC(2026,0,1+dia,12)).toISOString().slice(0,10);
+    const corte=corteSimulacionPC3(real);
+    assert.ok(corte>real&&corte.slice(0,7)>real.slice(0,7),`${real}: el corte ${corte} debe estar en un mes posterior`);
+    const f=fechasEscenarioPC3(corte);
+    for(const [nombre,fecha] of Object.entries({corte,primera:f.primera,segunda:f.segunda,uhtProd:f.uhtProd,uhtDisp:f.uhtDisp})){
+      assert.ok(![0,6].includes(diaSemana(fecha)),`${real}: ${nombre}=${fecha} cae en fin de semana`);
+      assert.equal(esFeriadoPE(fecha),false,`${real}: ${nombre}=${fecha} es feriado`);
+    }
+  }
+});
+test('Se reconocen los feriados que no deben aparecer en una entrega',()=>{
+  for(const f of ['2026-12-08','2026-12-09','2026-12-24','2026-12-25','2026-12-31','2027-01-01','2026-11-01','2026-04-02','2026-04-03','2027-03-25','2027-03-26'])assert.equal(esFeriadoPE(f),true,f);
+  for(const f of ['2026-12-10','2026-12-14','2026-12-15','2027-03-24'])assert.equal(esFeriadoPE(f),false,f);
+});
+test('En el caso PC3 la pantalla muestra la fecha simulada y no la real',()=>{
+  const ui=leer('../public/app.js');
+  assert.match(ui,/Simulación: /);
+  assert.match(ui,/escenario_pc3\?\.fecha_corte/);
 });
