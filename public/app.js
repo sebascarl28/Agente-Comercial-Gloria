@@ -80,7 +80,9 @@ function cambiarCliente(id){app.clienteId=id;app.cotizacionId=null;app.conversac
 function menu(){
   $$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===app.view));
   $$('[data-top]').forEach(b=>b.classList.toggle('selected',b.dataset.top===(['finanzas','jefatura'].includes(app.view)?app.view:'chat')));
-  $('#dateBadge').textContent=new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',weekday:'short',day:'2-digit',month:'short',year:'numeric'}).format(new Date());
+  const corte=ES_CASO_PC3&&app.datos?.escenario_pc3?.fecha_corte;
+  // En el caso PC3 la pantalla muestra la fecha SIMULADA (la del caso), no la real, para que todo sea coherente.
+  $('#dateBadge').textContent=corte?'Simulación: '+new Intl.DateTimeFormat('es-PE',{timeZone:'UTC',weekday:'short',day:'2-digit',month:'short',year:'numeric'}).format(new Date(corte+'T12:00:00Z')):new Intl.DateTimeFormat('es-PE',{timeZone:'America/Lima',weekday:'short',day:'2-digit',month:'short',year:'numeric'}).format(new Date());
 }
 function render(){menu();if(!app.datos)return;
   const v=app.view;
