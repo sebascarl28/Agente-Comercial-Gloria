@@ -32,7 +32,7 @@ function resumenPedidoConversado(q){
   if(!q||q.estado!=='CONFIRMADA')return '';
   const cajas=(q.items||[]).reduce((n,x)=>n+Number(x.cantidad||0),0);
   const lineas=(q.items||[]).map(x=>`${x.cantidad} cajas de ${x.producto_nombre}`).join(', ');
-  const pagos={CONTADO:'al contado',CREDITO:'con crédito aprobado',ANTICIPO:'con anticipo académico'};
+  const pagos={CONTADO:'al contado',CREDITO:'con crédito aprobado',ANTICIPO:'con adelanto del 40 %'};
   const entregas=(q.entregas||[]).map(x=>`${x.cajas} de ${nombres[x.id_producto]||'leche'} para el ${fecha(x.fecha)}${x.origen==='PRODUCCION'?' (sujetas a producción y a la liberación de Calidad)':''}`).join('; ');
   const dinero=n=>new Intl.NumberFormat('es-PE',{style:'currency',currency:'PEN'}).format(Number(n||0));
   const total=dinero(q.calculo?.total??q.total);
@@ -346,7 +346,7 @@ async function atender(req,res){
        q=await cambiarLinea(q.id_cotizacion,prod,d.cantidad,{modo:'FIJAR'});
        mensaje=`Actualicé las cajas de ${nombres[prod]}. Ahora llevamos ${resumenLineas(q)}. ¿Seguimos con las entregas?`;
      }else {estado.esperando='ELEGIR_CAMBIO_LINEA';estado.producto_cambio=prod;estado.cantidad_cambio=d.cantidad;mensaje=`Ya tenemos ${resumenLineas(q)}. ¿Deseas sumar ${d.cantidad} cajas de ${nombres[prod]} o cambiar su cantidad a ${d.cantidad}?`;}
-   } else if(q?.entregas?.length && !q.entrega_aceptada && d.accion==='FECHA' && d.fecha && coincideFechaPropuesta(q.entregas,d.fecha)){
+   } else if(q?.entregas?.length && !q.entrega_aceptada && d.accion==='FECHA' && d.fecha && coincideFechaPropuesta(q.entregas,d.fecha) && !/\b(?:rechazo|no quiero|no acepto|otra fecha|no me sirve)\b/.test(d.textoNormalizado)){
      // El cliente repitió una fecha que ya figura en la propuesta pendiente.
      // No regenerar cotización ni repetir el mismo texto: pedir consentimiento explícito.
      estado.esperando='ACEPTAR_ENTREGA';
@@ -503,7 +503,7 @@ async function atender(req,res){
      else {const pct=d.descuentoPct;const r=await solicitarDescuento(q.id_cotizacion,pct);q=r.cotizacion;estado.descuento_consultado=true;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
    } else if(d.accion==='PAGO'){
      if(!q){mensaje='Primero necesitamos preparar la cotización con producto y cantidad.';}
-     else if(!d.pago){estado.esperando='ELEGIR_PAGO';mensaje='Podemos trabajar al contado, con el crédito aprobado o con anticipo académico del 40%. ¿Cuál eliges?';}
+     else if(!d.pago){estado.esperando='ELEGIR_PAGO';mensaje='¿Cómo prefieres pagar: al contado, con tu línea de crédito o con un adelanto del 40 % y el resto contra entrega?';}
      else {
        const r=await definirPago(q.id_cotizacion,d.pago);q=r.cotizacion;mensaje=r.mensaje;
        if(d.direccion){
@@ -544,6 +544,7 @@ async function atender(req,res){
      else mensaje=q?siguienteNatural(q,estado):'De acuerdo. ¿Qué tipo de leche y cuántas cajas deseas?';
    } else if(d.accion==='NO'){
      if(estado.esperando==='DESCUENTO_OPCIONAL'){estado.descuento_consultado=true;mensaje=siguienteNatural(q,estado);}
+     else if(estado.esperando==='ACEPTAR_ENTREGA'&&q?.entregas?.length){estado.esperando='ELEGIR_FECHA';mensaje='Sin problema, no la confirmo. ¿Qué fecha te vendría mejor? Puedes decirme, por ejemplo, «el sábado de la próxima semana» o una fecha exacta.';}
      else mensaje=q?`Podemos modificar la propuesta. ${propuesta(q,estado)}`:'De acuerdo. ¿Qué tipo de leche te interesa?';
    } else if(d.accion==='CONFIRMAR_PEDIDO'){
      if(!q){mensaje='Aún no hay cotización. Necesitamos producto y cantidad.';}
