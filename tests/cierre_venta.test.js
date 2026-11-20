@@ -78,6 +78,7 @@ test('El resumen del pedido muestra reserva y saldo posterior separadamente',()=
 test('Un sí final requiere que el último mensaje del agente haya pedido confirmar el pedido',async()=>{
  const {ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento}=await import('../lib/dialogo.js');
  assert.equal(ultimaRespuestaPidePedido('Ya acordamos todo. ¿Confirmas el pedido con esas condiciones?'),true);
+ assert.equal(ultimaRespuestaPidePedido('¡Listo, ya tenemos todo! Abajo te dejo el resumen de tu pedido. ¿Lo confirmo con estas condiciones?'),true);
  assert.equal(ultimaRespuestaPidePedido('Hay 90 cajas de leche fresca en stock.'),false);
  assert.equal(ultimaRespuestaPideDescuento('Jefatura autorizó ofrecer 8%. ¿Aceptas ese descuento?'),true);
  assert.equal(ultimaRespuestaPideDescuento('Jefatura autorizó ofrecer 8%, pero falta que tú lo aceptes.'),true);

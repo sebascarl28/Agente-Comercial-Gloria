@@ -44,6 +44,9 @@ Repositorio: **`sebascarl28/Agente-Comercial-Gloria`**. El código vive en `publ
 | `DATABASE_URL` | URI privado PostgreSQL de **tu nuevo proyecto Supabase**. |
 | `GROQ_API_KEY` | Tu clave de Groq para interpretar mensajes. |
 | `GROQ_MODEL` | `openai/gpt-oss-120b` (puedes sustituir por un modelo soportado en tu cuenta). |
+| `DEEPSEEK_API_KEY` | (Opcional) Clave de DeepSeek. Si existe, se usa como respaldo cuando Groq falla. Solo en Vercel o en tu `.env` local; nunca en el repositorio. |
+| `DEEPSEEK_MODEL` | (Opcional) `deepseek-flash` por defecto. |
+| `GROQ_MODEL_RESPALDO` | (Opcional) Segundo modelo de Groq; por defecto `openai/gpt-oss-20b`. |
 
 En ningún caso compartas `DATABASE_URL` ni claves Groq en chat, capturas de pantalla o archivos GitHub. Finanzas y Jefatura no requieren contraseña en esta demostración; sus decisiones siguen validadas por las reglas comerciales del backend.
 

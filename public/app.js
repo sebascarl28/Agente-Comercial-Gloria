@@ -35,12 +35,28 @@ function mostrarResumenFinal(q){
 const dato=(str)=>esc(str);
 let toastTimer;
 function toast(mensaje,esError=false){const t=$('#toast');t.textContent=mensaje;t.className='toast'+(esError?' error':'');t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true},6000);}
+// Las lecturas (GET) se reintentan una vez ante un corte transitorio; las escrituras (POST) NO,
+// para no duplicar mensajes, cotizaciones ni pedidos. Todas tienen un tiempo máximo de espera.
+const pausaMs=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(url,{method='GET',body}={}){
   const headers={'Content-Type':'application/json','X-Demo-Session':app.sesionId,'X-Demo-Scenario':ES_CASO_PC3?'pc3':'normal'};
-  const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});
-  let data;try{data=await r.json()}catch{throw new Error(`Error HTTP ${r.status} (revisa Vercel).`)}
-  if(!r.ok||!data.ok)throw new Error(data.error||`Error HTTP ${r.status}`);
-  return data;
+  const intentos=method==='GET'?2:1;
+  for(let i=1;i<=intentos;i++){
+    const ctl=new AbortController();const reloj=setTimeout(()=>ctl.abort(),25000);
+    let error=null,reintentable=false;
+    try{
+      const r=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store',signal:ctl.signal});
+      let data=null;try{data=await r.json()}catch{}
+      if(data&&r.ok&&data.ok)return data;
+      reintentable=!data?[502,503,504].includes(r.status):data.reintentable===true;
+      error=new Error(data?(data.error||`Error HTTP ${r.status}`):`El servidor no respondió bien (HTTP ${r.status}). Vuelve a intentarlo en unos segundos.`);
+    }catch(err){
+      reintentable=true;
+      error=new Error(err?.name==='AbortError'?'El servidor tardó demasiado en responder. Vuelve a intentarlo.':'No hay conexión con el servidor. Revisa tu internet y vuelve a intentarlo.');
+    }finally{clearTimeout(reloj);}
+    if(i<intentos&&reintentable){await pausaMs(1200);continue;}
+    throw error;
+  }
 }
 async function cargar({silencioso=false}={}){
   try{
@@ -118,13 +134,17 @@ function panelCasoPC3(){
   const e=app.datos?.escenario_pc3;
   if(!e)return '';
   const m=e.mantenimiento?.[0];
+  const hoy=fechaLarga(e.fecha_corte),f1=fechaLarga(e.fecha_solicitada),f2=fechaLarga(e.fecha_alternativa);
   return `<details class="card" style="padding:12px 18px;margin:0 0 15px;border-left:4px solid #0c58ca;background:#f3f7ff">
     <summary style="cursor:pointer;font-weight:700">Caso PC3 · Datos del escenario (consulta opcional)</summary>
-    <p style="margin:9px 0 5px">Solicitud: 180 cajas UHT, 60 de evaporada 400 g y 120 de fresca. Inventario liberado para el 16/11: 340 de las 360 cajas. Las otras 20 son de evaporada y se prevén desde el 17/11 por OP-EVA-1711; no hay promesa de despacho.</p>
-    <p style="margin:6px 0">Parada de cerradora: ${esc(m?.duracion_horas||2)} h el 13/11. Capacidad: 19,200 → 17,600 cajas; brecha agregada: 400.</p>
-    <small>Información académica sintética. Para iniciar el caso, escribe tu solicitud en el chat. Stock, Calidad, logística y aceptación se validan por separado.</small>
+    <p style="margin:9px 0 5px">Solicitud: 180 cajas UHT, 60 de evaporada 400 g y 120 de fresca. Inventario liberado para el ${esc(f1)}: 340 de las 360 cajas. Las otras 20 son de evaporada y se prevén desde el ${esc(f2)} por OP-EVA-1711; no hay promesa de despacho.</p>
+    <p style="margin:6px 0">Parada de cerradora: ${esc(m?.duracion_horas||2)} h el ${esc(hoy)} (día de la simulación). Capacidad: 19,200 → 17,600 cajas; brecha agregada: 400.</p>
+    ${!quote()?'<button class="quick-btn" style="margin:8px 0 4px;font-size:15px;padding:11px 18px" data-chat-suggest="Quiero preparar el caso PC3 del informe">▶ Iniciar caso PC3 · 360 cajas</button><br>':''}
+    <small>Información académica sintética. Para iniciar el caso pulsa «Iniciar caso PC3» (o escribe «Quiero preparar el caso PC3 del informe») y acepta las entregas con los botones del chat. Stock, Calidad, logística y aceptación se validan por separado.</small>
   </details>`;
 }
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fechaLarga(iso){const p=String(iso||'').slice(0,10).split('-').map(Number);return p.length===3&&p[1]?`${p[2]} de ${MESES[p[1]-1]}`:'';}
 function selectorEscenario(){
   const normal=ES_CASO_PC3?'':' selected';
   const pc3=ES_CASO_PC3?' selected':'';

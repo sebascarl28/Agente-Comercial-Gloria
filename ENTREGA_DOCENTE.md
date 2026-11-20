@@ -29,3 +29,21 @@ El ZIP **no contiene contraseñas, URI de base de datos ni claves API**. Para ej
 - Vercel, Supabase y Groq son servicios externos, sujetos a sus condiciones y límites de cuenta. SAP/ERP, pasarela de pago y despachos reales **no** están integrados.
 
 La prueba técnica valida el código y la lógica; una ejecución completa del chat requiere la base y los servicios configurados. El resumen de pedidos muestra propuestas sujetas a Calidad y logística cuando hay producción pendiente.
+
+
+## Diagnóstico y recuperación ante fallos
+
+Antes de la demo, abrir `/api/health?groq=1` (por ejemplo `https://agente-comercial-gloria.vercel.app/api/health?groq=1`). Responde un JSON con la configuración (sin mostrar claves) y el estado de cada servicio.
+
+| Síntoma | Causa probable | Qué hacer |
+|---|---|---|
+| `/api/health` devuelve `base_datos.ok: false` | Supabase pausado, `DATABASE_URL` ausente o puerto incorrecto | Reanudar el proyecto en Supabase; usar la URI del *Transaction Pooler* (puerto 6543) en `DATABASE_URL` y volver a desplegar |
+| El chat indica «La base de datos no respondió a tiempo» | Corte transitorio del pooler o arranque en frío | Esperar unos segundos y repetir el mensaje; el sistema ya reintentó la conexión una vez |
+| El chat responde en «modo guiado» (`motor: respaldo_groq`) | Groq con límite (429), caído o lento | No hace falta intervenir: el sistema prueba un segundo modelo (`GROQ_MODEL_RESPALDO`, por defecto `openai/gpt-oss-20b`) y, si también falla, usa reglas locales durante unos segundos. Las reglas de stock, precio, crédito y aprobaciones **no** dependen de Groq. Si persiste, revisar la cuota en la consola de Groq |
+| «Sesión demo ausente o inválida» | Pestaña antigua o almacenamiento del navegador bloqueado | Recargar la página o pulsar «Nueva simulación» |
+| El caso no muestra la parada de la cerradora ni OP-EVA-1711 | Se abrió la demo general | Entrar con `?escenario=pc3` |
+| El chat pregunta «¿de qué leche?» en vez de armar las 360 cajas | No se usó la frase que activa el caso | Pulsar el botón «▶ Iniciar caso PC3 · 360 cajas» (o escribir «Quiero preparar el caso PC3 del informe»); las fechas aparecen en el recuadro «Caso PC3 · Datos del escenario» |
+
+Orden de respaldo de la IA: modelo principal de Groq → segundo modelo de Groq → DeepSeek (solo si existe `DEEPSEEK_API_KEY`) → reglas locales. Fechas del caso PC3: son relativas al día en que se crea la simulación y siempre caen en día hábil. La parada de la cerradora es ese día (D), la primera entrega pedida es D+3 (o el siguiente día hábil) y las 20 cajas de evaporada llegan el día hábil siguiente. En el informe equivale a 13, 16 y 17 de noviembre de 2026. Cada pestaña nueva o «Nueva simulación» toma el día actual y la propia aplicación ajusta las fechas de esa copia; no hay que ejecutar nada en Supabase (`sql/05_escenario_pc3_360.sql` sigue siendo el punto de partida con las fechas del informe). Para iniciar el caso basta pulsar el botón «▶ Iniciar caso PC3 · 360 cajas».
+
+Variables opcionales de ajuste: `GROQ_MODEL`, `GROQ_MODEL_RESPALDO`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` y `GROQ_TIMEOUT_MS` (por defecto 7000 ms por intento). La respuesta del chat incluye `proveedor_ia` (`groq` o `deepseek`) para la bitácora.

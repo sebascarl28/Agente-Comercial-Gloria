@@ -20,9 +20,9 @@ test('consulta stock durante una cotización PC3 sin reiniciarla',()=>{
   const antes=JSON.stringify(q);
   const mensaje=explicarStockDeCotizacion(q);
   assert.match(mensaje,/360 cajas/);
-  assert.match(mensaje,/20 previstas en producci[oó]n/);
-  assert.match(mensaje,/340 cajas para el 16\/11\/2026/);
-  assert.match(mensaje,/20 cajas para el 17\/11\/2026/);
+  assert.match(mensaje,/20 más que estarán disponibles/);
+  assert.match(mensaje,/340 cajas para el 16 de noviembre/);
+  assert.match(mensaje,/20 cajas para el 17 de noviembre/);
   assert.doesNotMatch(mensaje,/cu[aá]ntas cajas deseas cotizar/i);
   assert.equal(JSON.stringify(q),antes);
 });
@@ -30,7 +30,7 @@ test('pregunta de una variedad conserva negociación de varias leches',()=>{
   const mensaje=explicarStockDeCotizacion(q,'PRD-002');
   assert.match(mensaje,/leche evaporada/);
   assert.doesNotMatch(mensaje,/• leche fresca:/);
-  assert.match(mensaje,/20 cajas para el 17\/11\/2026/);
+  assert.match(mensaje,/20 cajas para el 17 de noviembre/);
 });
 test('la rama de stock no cambia la etapa del pedido',()=>{
   const chat=readFileSync(new URL('../api/chat.js',import.meta.url),'utf8');
