@@ -22,7 +22,7 @@
 
 ## Fronteras de autoridad
 
-- **IA/Groq**: comprender mensajes, explicar opciones, solicitar acciones permitidas.
+- **IA/DeepSeek y Groq**: comprender mensajes, explicar opciones y sugerir acciones permitidas; DeepSeek primero si está configurado.
 - **Backend comercial**: cálculos, descuentos automáticos permitidos, versiones, reglas de fecha y crédito.
 - **ERP simulado**: lotes, QM, PP-PI, reservas, pagos simulados, pedidos.
 - **Jefatura Comercial**: decisión sobre descuentos especiales, máximo 12 % y mínimo margen por SKU.
@@ -31,21 +31,20 @@
 
 ## Estado y evidencia del caso de excepción
 
-- Pedido: **300 cajas UHT**.
-- Stock: **250 disponibles liberadas**; 40 en inspección no pueden incluirse.
-- Producción: **50 programadas**, la fecha se obtiene del ERP simulado; no son stock físico ni una promesa de despacho.
-- Opciones: **250 primero + 50 después**, o **300 juntas tras la fecha viable**.
+- Pedido del **caso PC3**: **360 cajas**, distribuidas en 180 UHT, 60 evaporada y 120 fresca.
+- La interrupción de la cerradora deja **40 de las 60 cajas de evaporada** listas para la primera fecha; otras **20** dependen de producción y liberación de Calidad.
+- Alternativa del escenario: **340 cajas primero y 20 de evaporada después**, sujetas a despacho. La producción planificada no es stock liberado ni una promesa firme.
 - Descuento de ejemplo: **8 %**, Jefatura evalúa y cliente acepta.
 - Pago: crédito de La Alameda sujeto a saldo.
-- Resultado: `PROGRAMADO_CONDICIONAL`, con trazabilidad en cotización, aprobaciones, pedido y entregas.
+- Resultado: `PROGRAMADO_CONDICIONAL` si se confirma un pedido que usa producción prevista, con trazabilidad en cotización, aprobaciones, pedido y entregas.
 
 ## Acciones de API
 
 - `GET /api/bootstrap?cliente_id=...` — catálogo, lotes, planes y estado de cliente/cotización.
 - `POST /api/chat` — mensaje natural + memoria de conversación guardada en PostgreSQL.
 - `POST /api/action` — crear/modificar cotización, pago, entregas, crédito, aceptación y confirmación.
-- `GET /api/gestion?rol=finanzas|jefatura` — bandejas internas, requiere PIN específico.
-- `POST /api/gestion` — decisión humana, requiere PIN específico.
+- `GET /api/gestion?rol=finanzas|jefatura` — bandejas internas de la simulación; no tienen PIN en esta demo.
+- `POST /api/gestion` — decisión humana en la simulación; el backend valida importes, límites y estado.
 
 **Importante:** prototipo académico, no apto para uso comercial real con personas y dinero verdaderos sin seguridad, auditoría, infraestructura y aprobación institucional adicionales.
 

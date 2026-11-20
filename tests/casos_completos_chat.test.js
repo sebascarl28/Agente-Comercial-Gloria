@@ -54,6 +54,7 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
  },
  async proponerEntrega(id,datos){
   let partes;if(this.pc3&&this.q.items.length===3&&datos.modo==='DOS_PARTES')partes=[{id_producto:'PRD-001',cajas:180,fecha:'2026-11-16',origen:'STOCK'},{id_producto:'PRD-002',cajas:40,fecha:'2026-11-16',origen:'STOCK'},{id_producto:'PRD-003',cajas:120,fecha:'2026-11-16',origen:'STOCK'},{id_producto:'PRD-002',cajas:20,fecha:'2026-11-17',origen:'PRODUCCION'}];
+  else if(datos.modo==='PERSONALIZADA')partes=datos.partes.map(x=>({...x,origen:'STOCK'}));
   else partes=this.q.items.map(x=>({id_producto:x.id_producto,cajas:x.cantidad,fecha:datos.fecha,origen:'STOCK'}));
   this.q.entregas=partes;this.q.entrega_aceptada=false;this.q.version++;
   return {mensaje:`Propuesta: ${partes.map(x=>`${x.cajas} cajas ${x.fecha}`).join('; ')}. Sujeta a logística y Calidad. ¿La aceptas?`,cotizacion:this.actualizar()};
@@ -189,6 +190,31 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   assert.equal(fechaAceptada.cotizacion.entrega_aceptada,true);
   const creditoNatural=await paso('uso mi credito mejor',/cr[eé]dito/i);
   assert.equal(creditoNatural.cotizacion.forma_pago,'CREDITO');
+  m.reiniciar(false);
+  // La petición mixta cambia cajas y espera solo el día que falta. Después,
+  // el descuento nuevo reemplaza la renovación previa antes de aceptar fechas.
+  await paso('quiero 10 cajas de leche fresca y 20 de leche evaporada',/10 cajas.*20 cajas/i);
+  const mixta=await paso('quiero que agregues 5 cajas mas de leche fresca. Luego quiero que para la leche fresca me la entregues mañana y para la evaporada la siguiente semana',/15 cajas.*20 cajas.*qu[eé] d[ií]a exacto.*evaporada/i);
+  assert.equal(mixta.cotizacion.items[0].cantidad,15);
+  assert.equal(mixta.cotizacion.entregas.length,0);
+  const separadas=await paso('el lunes',/15 cajas.*20 cajas/i);
+  assert.deepEqual(separadas.cotizacion.entregas.map(x=>x.fecha),['2026-11-14','2026-11-16']);
+  await paso('Acepto la entrega',/pagar|cr[eé]dito|contado/i);
+  await paso('con mi crédito aprobado',/descuento/i);
+  await paso('Quiero 8% de descuento',/Jefatura/i);
+  await m.decidirDescuento(idQ,'APROBAR',8);
+  await paso('Acepto el descuento',/direcci[oó]n/i);
+  const nuevaMixta=await paso('quiero agregar 10 cajas mas de leche fresca y pedir 6% de desccuento',/25 cajas.*20 cajas.*6%/i);
+  assert.deepEqual(nuevaMixta.cotizacion.items.map(x=>x.cantidad),[25,20]);
+  assert.deepEqual(nuevaMixta.cotizacion.entregas.map(x=>x.fecha),['2026-11-14','2026-11-16']);
+  const nuevoPct=await paso('acepto la entrega',/descuento de 6%/i);
+  assert.equal(nuevoPct.cotizacion.aprobaciones[0].solicitado_pct,6);
+  await m.decidirDescuento(idQ,'APROBAR',6);
+  await paso('Acepto el descuento',/6 %/i);
+  await paso('agregar 5 cajas mas de leche fresca',/descuento anterior de 6%/i);
+  await paso('puedo pedir un 9% de descuento mas?',/Anot[eé] tu solicitud de 9%/i);
+  const sustituido=await paso('acepto la entrega',/descuento de 9%/i);
+  assert.equal(sustituido.cotizacion.aprobaciones[0].solicitado_pct,9);
   m.reiniciar(false);
   await paso('quiero 20 cajas de leche fresca y 10 cajas de leche evaporada',/20 cajas.*10 cajas/i);
   await paso('para el 27 de noviembre',/2026-11-27/);

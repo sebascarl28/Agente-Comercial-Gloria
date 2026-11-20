@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fechaEscrita} from '../lib/ai.js';
-import {repartoPorProducto,pideReparto} from '../lib/entregas-conversacion.js';
+import {repartoPorProducto,fechasParcialesPorProducto,pideReparto} from '../lib/entregas-conversacion.js';
 import {interpretarCambio} from '../lib/cambios-conversacion.js';
 import {confirmacionFlexible} from '../lib/flexibilidad.js';
 import {leerTurno} from '../lib/dialogo.js';
@@ -15,6 +15,20 @@ test('entregas por producto no mezclan fechas ni cambian cantidades',()=>{
    {id_producto:'PRD-003',cajas:30,fecha:'2026-11-21'},
    {id_producto:'PRD-001',cajas:20,fecha:'2026-11-28'}]);
  assert.equal(repartoPorProducto('fresca mañana y evaporada el siguiente sábado',q,'2026-11-20'),null);
+});
+test('una línea sin nombre se asigna solo por cantidad inequívoca',()=>{
+ const dos={items:[{id_producto:'PRD-003',cantidad:10},{id_producto:'PRD-002',cantidad:20}]};
+ assert.deepEqual(repartoPorProducto('dime 10 cajas de leche para mañana y las 20 cajas de evaporada para el lunes',dos,'2026-11-20'),[
+   {id_producto:'PRD-003',cajas:10,fecha:'2026-11-21'},
+   {id_producto:'PRD-002',cajas:20,fecha:'2026-11-23'}]);
+ assert.equal(repartoPorProducto('dime 30 cajas de leche para mañana y las 20 de evaporada para el lunes',dos,'2026-11-20'),null);
+});
+test('«me la den mañana» es entrega, no cambio de productos',()=>{
+ const dos={items:[{id_producto:'PRD-003',cantidad:20},{id_producto:'PRD-002',cantidad:20}]};
+ const t='quiero que la leche fresca gloria me la den mañana y la evaporada me la den la siguiente semana';
+ assert.equal(pideReparto(t),true);
+ assert.equal(repartoPorProducto(t,dos,'2026-11-20'),null);
+ assert.deepEqual(fechasParcialesPorProducto(t,dos,'2026-11-20'),[{id_producto:'PRD-003',fecha:'2026-11-21'}]);
 });
 test('fecha corregida y afirmación contextual',()=>{
  assert.equal(fechaEscrita('osea para mñana mejor','2026-11-20'),'2026-11-21');

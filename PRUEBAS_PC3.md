@@ -1,5 +1,17 @@
 # Casos de prueba del Agente Comercial Gloria (PC3)
 
+Demostración: [aplicación](https://agente-comercial-gloria.vercel.app/) · [video de prueba](https://youtu.be/c_QibJL2jXM). Antes de cada recorrido pulsa **Nueva simulación**. Las pruebas automatizadas (`npm test`) ejercitan el chat con base y proveedores simulados; para acreditar la ejecución en vivo, recorre el caso normal y la excepción desde la página.
+
+## Caso conversacional adicional — edición de varias condiciones
+
+1. Cotiza 10 cajas de fresca y 20 de evaporada.
+2. Di «agrega 5 cajas de fresca; fresca mañana y evaporada la siguiente semana». Resultado esperado: **15 + 20 cajas**; debe pedir el día concreto para evaporada, sin confirmar automáticamente fechas.
+3. Responde «el lunes». Resultado esperado: dos líneas con sus fechas respectivas, sujetas a validación de stock y despacho; acepta la propuesta.
+4. Pide 8 %; Jefatura lo autoriza y el cliente acepta. Luego di «agrega 10 cajas de fresca y pide 6 %». Resultado esperado: nueva versión con **25 + 20 cajas**, fechas revalidadas y **solo 6 %** pendiente de evaluación después de aceptar la nueva entrega. Nunca se reenvía el 8 % anterior.
+5. Alternativa: «10 cajas de leche mañana y 20 de evaporada el lunes». La primera línea se asigna a fresca solo si coincide de manera única con la cotización; si no coincide, el agente pide aclaración.
+
+Resultado automatizado observado: las pruebas de `tests/casos_completos_chat.test.js` y `tests/reparto_conversacion.test.js` comprobaron esas transiciones con servicios simulados. La prueba en Vercel debe repetirse con la base de demostración y puede mostrar disponibilidad distinta si otra simulación ya reservó stock.
+
 ## Caso 1 — Normal (sin producción)
 
 - Cliente: La Alameda; leche evaporada; 100 cajas.
