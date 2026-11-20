@@ -14,7 +14,7 @@ import {interpretarPedidoNuevo,hayLineaNoReconocida} from '../lib/interpretacion
 import {pidePrecio,preferenciasPrecio,respuestaPrecios,respuestaTotalCotizacion} from '../lib/precios-conversacion.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
 import {confirmacionFlexible} from '../lib/flexibilidad.js';
-import {recuperarContexto,leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionEntregaIA,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
+import {normalizar,recuperarContexto,leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionEntregaIA,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto,direccionCompleta} from '../lib/dialogo.js';
 import {contextoCliente,crearCotizacion,crearCotizacionLineas,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea,cambiarLineas} from '../lib/service.js';
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura,MAX_DESCUENTO_AGENTE,MAX_DESCUENTO_JEFATURA} from '../lib/rules.js';
 import {siguientePaso,estadoComercial,pendientesDescuento,resumenHabilitado,firmaCondiciones,confirmacionVigente,creditoInsuficiente} from '../lib/negociacion.js';
@@ -56,6 +56,12 @@ function mensajeFaltantePC3(){
   return `Porque para el ${f1} solo tenemos listas 40 de las 60 cajas de leche evaporada: una parada de mantenimiento en nuestra línea de envasado retrasó la producción. Las otras 20 estarán listas desde el ${f2}. Las 180 cajas de UHT y las 120 de fresca sí las tenemos para el ${f1}. No puedo asegurarte las 360 juntas ese día; te propongo recibir 340 cajas el ${f1} y las 20 de evaporada el ${f2}, sujetas a la liberación de Calidad y a la confirmación del despacho. ¿Aceptas?`;
 }
 function resumenLineas(q){return (q?.items||[]).map(x=>`${x.cantidad} cajas de ${x.producto_nombre}`).join(' y ');}
+function aclararDireccion(b){
+ if(!b?.distrito)return b?.direccion?`Anoté ${b.direccion}. ¿En qué distrito queda?`:'¿En qué distrito queda la dirección?';
+ if(!b.direccion)return `Anoté ${b.distrito}. Indícame la calle o avenida y el número del inmueble; aún no cambiaré la dirección registrada.`;
+ if(/,\s*(?:calle|avenida|avenina|av\.?|jir[oó]n|jr\.?)\s*\d+\b/i.test(b.direccion))return `Anoté ${b.direccion}, ${b.distrito}, pero «calle 16» puede ser el nombre de otra vía. Escríbeme el nombre de la calle o avenida y el número del inmueble.`;
+ return `Anoté ${b.direccion}, ${b.distrito}. ¿Cuál es el número del inmueble?`;
+}
 function propuesta(q,estado){
   if(q?.items?.length>1){
     const faltan=q.items.map(x=>({nombre:x.producto_nombre,cajas:x.cantidad,
@@ -188,6 +194,7 @@ async function atender(req,res){
      if(total)mensaje=total;
      else {const catalogo=await consulta('SELECT id_producto,nombre,precio,unidades_caja FROM productos WHERE activo=true ORDER BY id_producto');
        mensaje=respuestaPrecios(catalogo,preferenciasPrecio(texto,estado,q,interpretacion));}
+     if(!q&&estado.propuesta_productos?.length)mensaje+=` Conservo tu propuesta de ${estado.propuesta_productos.map(x=>`${x.cantidad} cajas de ${nombres[x.id]}`).join(' y ')}. ¿Confirmas esas cantidades para preparar la cotización?`;
    } else if(propuestaPedido){
      if(propuestaPedido.operaciones){
        q=await crearCotizacionLineas(idCliente,propuestaPedido.operaciones);
@@ -389,7 +396,7 @@ async function atender(req,res){
    } else if(estado.esperando==='REDUCIR_CANTIDAD' && d.accion==='NO'){
      estado.esperando='ESPERAR_PLANEAMIENTO';mensaje=`Mantendremos la solicitud original de ${q.cantidad} cajas. Solo ${cobertura(q).inmediato+cobertura(q).futuro} cuentan con cobertura; las restantes requieren planificación. No hay fecha confirmable para el total. ¿Quieres que ajustemos la cantidad o revisamos otra leche?`;
    } else if(estado.esperando==='ACEPTAR_DIRECCION_NUEVA' && (esConfirmacionCorta(texto)||esAceptacionDireccion(texto))){
-     if(!q||!estado.direccion_borrador?.direccion||!estado.direccion_borrador?.distrito){mensaje='Indícame la calle, número y distrito antes de confirmar una nueva dirección.';estado.esperando='PEDIR_DIRECCION';}
+     if(!q||!estado.direccion_borrador?.distrito||!direccionCompleta(estado.direccion_borrador?.direccion)){mensaje=aclararDireccion(estado.direccion_borrador);estado.esperando='PEDIR_DIRECCION';}
      else {
        const b=estado.direccion_borrador;
        const id='DIR-'+randomUUID();
@@ -504,6 +511,13 @@ async function atender(req,res){
      }
    } else if(d.accion==='DESCUENTO'){
      if(!q){mensaje='Para calcular un descuento primero necesito la leche y el número de cajas.';}
+     else if(pendientesDescuento(q)){
+       const ap=pendientesDescuento(q);
+       estado.esperando=ap.estado==='OFERTADO'?'ACEPTAR_DESCUENTO':'ESPERAR_JEFATURA';
+       mensaje=estadoComercial({q,contexto,tema:'descuento'});
+       if(ap.estado==='OFERTADO')mensaje+=` Tu solicitud de ${ap.solicitado_pct}% ya fue evaluada. No cambiaré la oferta de ${ap.ofrecido_pct}% ni enviaré otra solicitud sin tu decisión. ¿Aceptas esa oferta o la rechazas para seguir negociando?`;
+       else mensaje+=' Esperemos la decisión antes de presentar otra solicitud.';
+     }
      else if(d.descuentoPct===null){estado.esperando='PEDIR_DESCUENTO';mensaje='El asesor puede ofrecer hasta 5% según margen; Jefatura evalúa de 5% a 12%. ¿Qué porcentaje solicitas?';}
      else {const pct=d.descuentoPct;const r=await solicitarDescuento(q.id_cotizacion,pct);q=r.cotizacion;estado.descuento_consultado=true;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
    } else if(d.accion==='PAGO'){
@@ -523,10 +537,20 @@ async function atender(req,res){
      if(!q){mensaje='Primero necesitamos preparar una cotización para acordar la entrega.';}
      else {
        const t=d.textoNormalizado;
-       const conocida=contexto.direcciones?.find(x=>t.includes(x.direccion.toLowerCase())||(t.includes('direccion registrada')&&x.principal));
-       if(conocida){const r=await confirmarDireccion(q.id_cotizacion,conocida.id_direccion);q=r.cotizacion;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
-       else if(d.direccion?.direccion&&(d.direccion?.distrito||estado.direccion_borrador?.distrito)){const b={...estado.direccion_borrador,...d.direccion,distrito:d.direccion.distrito||estado.direccion_borrador?.distrito};estado.direccion_borrador=b;estado.esperando='ACEPTAR_DIRECCION_NUEVA';mensaje=`Puedo registrar la nueva dirección ${b.direccion}, ${b.distrito}. ¿La confirmas?`;}
-       else {if(d.direccion)estado.direccion_borrador={...estado.direccion_borrador,...d.direccion};estado.esperando='PEDIR_DIRECCION';mensaje=`Indícame la calle, número y distrito. Las direcciones registradas son: ${contexto.direcciones.map(x=>`${x.direccion}, ${x.distrito}`).join(' / ')}.`;}
+       const conocida=contexto.direcciones?.find(x=>t.includes(normalizar(x.direccion)) && (!d.direccion?.distrito||normalizar(d.direccion.distrito)===normalizar(x.distrito)) || (t.includes('direccion registrada')&&x.principal));
+       if(conocida){estado.direccion_borrador=null;const r=await confirmarDireccion(q.id_cotizacion,conocida.id_direccion);q=r.cotizacion;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;}
+       else {
+         const b={...estado.direccion_borrador};
+         if(d.direccion?.direccion)b.direccion=d.direccion.direccion;
+         if(d.direccion?.distrito)b.distrito=d.direccion.distrito;
+         estado.direccion_borrador=b;
+         if(b.distrito&&direccionCompleta(b.direccion)){
+           estado.esperando='ACEPTAR_DIRECCION_NUEVA';mensaje=`Puedo registrar la nueva dirección ${b.direccion}, ${b.distrito}. ¿La confirmas?`;
+         }else{
+           estado.esperando='PEDIR_DIRECCION';
+           mensaje=Object.keys(b).length?aclararDireccion(b):`Indícame la calle, número y distrito. Las direcciones registradas son: ${(contexto.direcciones||[]).map(x=>`${x.direccion}, ${x.distrito}`).join(' / ')}.`;
+         }
+       }
      }
    } else if(d.accion==='SI'){
      const ap=pendientesDescuento(q),credito=contexto.creditos?.find(x=>x.estado==='OFERTADO');
@@ -549,6 +573,11 @@ async function atender(req,res){
      else mensaje=q?siguienteNatural(q,estado):'De acuerdo. ¿Qué tipo de leche y cuántas cajas deseas?';
    } else if(d.accion==='NO'){
      if(estado.esperando==='DESCUENTO_OPCIONAL'){estado.descuento_consultado=true;mensaje=siguienteNatural(q,estado);}
+     else if(estado.esperando==='ACEPTAR_DESCUENTO'&&pendientesDescuento(q)?.estado==='OFERTADO'){
+       const r=await clienteRespondeDescuento(pendientesDescuento(q).id_solicitud,false);
+       q=await detalleCotizacion(q.id_cotizacion);estado.esperando='PEDIR_DESCUENTO';
+       mensaje=`${r.mensaje} ¿Qué otro porcentaje deseas solicitar, o prefieres continuar sin descuento?`;
+     }
      else if(estado.esperando==='ACEPTAR_ENTREGA'&&q?.entregas?.length){estado.esperando='ELEGIR_FECHA';mensaje='Sin problema, no la confirmo. ¿Qué fecha te vendría mejor? Puedes decirme, por ejemplo, «el sábado de la próxima semana» o una fecha exacta.';}
      else mensaje=q?`Podemos modificar la propuesta. ${propuesta(q,estado)}`:'De acuerdo. ¿Qué tipo de leche te interesa?';
    } else if(d.accion==='CONFIRMAR_PEDIDO'){

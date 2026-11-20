@@ -16,15 +16,21 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   'PRD-003':{nombre:'Leche Fresca Gloria 1 L',precio:62,costo:42,margen_minimo:25}
  };
  const idQ='22222222-2222-4222-8222-222222222222',idS='11111111-1111-4111-8111-111111111111';
- const m={q:null,sesion:null,pc3:false,stock:null,asignaciones:[],reiniciar(pc3){
+ const m={q:null,sesion:null,pc3:false,stock:null,asignaciones:[],direcciones:[],reiniciar(pc3){
   this.q=null;this.pc3=pc3;this.asignaciones=[];
+  this.direcciones=[{id_direccion:'DIR-LA-01',direccion:'Av. Ejemplo 2450',distrito:'Ate',principal:true},{id_direccion:'DIR-LA-02',direccion:'Jr. Demostración 450',distrito:'Santa Anita',principal:false}];
   this.sesion={id_conversacion:idS,mensajes:[],id_cotizacion:null};
   this.stock=pc3?{'PRD-001':250,'PRD-002':40,'PRD-003':120}:{'PRD-001':250,'PRD-002':300,'PRD-003':90};
  },
  async enSimulacion(req,fn){return ejecutarEnEscenarioPC3(req.headers['x-demo-scenario']==='pc3',fn);},
  async uno(){return this.sesion;},
- async consulta(sql,args=[]){if(sql.startsWith('UPDATE conversaciones')){this.sesion.mensajes=JSON.parse(args[1]);this.sesion.id_cotizacion=args[2];}return [];},
- async contextoCliente(){return {cliente:{razon_social:'La Alameda',linea_credito:30000,plazo_credito_dias:30},creditos:[],direcciones:[{id_direccion:'DIR-LA-01',direccion:'Av. Ejemplo 2450',distrito:'Ate',principal:true}],pedidos:[]};},
+ async consulta(sql,args=[]){
+  if(sql.startsWith('UPDATE conversaciones')){this.sesion.mensajes=JSON.parse(args[1]);this.sesion.id_cotizacion=args[2];}
+  if(sql.startsWith('SELECT id_producto,nombre,precio'))return Object.entries(defs).map(([id_producto,p])=>({id_producto,nombre:p.nombre,precio:p.precio}));
+  if(sql.startsWith('INSERT INTO direcciones_entrega'))this.direcciones.push({id_direccion:args[0],direccion:args[2],distrito:args[3],principal:false});
+  return [];
+ },
+ async contextoCliente(){return {cliente:{razon_social:'La Alameda',linea_credito:30000,plazo_credito_dias:30},creditos:[],direcciones:this.direcciones,pedidos:[]};},
  actualizar(){
   const q=this.q;if(!q)return null;
   q.items=q.items.map(x=>({...x,disponibilidad:this.stockItem(x.id_producto)}));q.disponibilidad=q.items[0].disponibilidad;
@@ -54,10 +60,10 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
  },
  async aceptarEntrega(){this.q.entrega_aceptada=true;this.q.version++;return {mensaje:'Se aceptó el esquema de entrega propuesto.',cotizacion:this.actualizar()};},
  async definirPago(id,modo){this.q.forma_pago=modo;return {mensaje:modo==='CONTADO'?'Se seleccionó pago al contado.':'Se seleccionó crédito dentro de la línea aprobada.',cotizacion:this.actualizar()};},
- async confirmarDireccion(){this.q.direccion_confirmada=true;this.q.version++;return {mensaje:'Dirección confirmada: Av. Ejemplo 2450, Ate.',cotizacion:this.actualizar()};},
+ async confirmarDireccion(id,idDireccion){const d=this.direcciones.find(x=>x.id_direccion===idDireccion);assert.ok(d);Object.assign(this.q,{id_direccion:idDireccion,direccion:d.direccion,distrito:d.distrito,direccion_confirmada:true});this.q.version++;return {mensaje:`Dirección confirmada: ${d.direccion}, ${d.distrito}.`,cotizacion:this.actualizar()};},
  async solicitarDescuento(id,pct){this.q.aprobaciones=[{id_solicitud:'DESC-1',estado:'PENDIENTE_JEFATURA',solicitado_pct:pct}];this.q.estado='PENDIENTE_JEFATURA';return {mensaje:`Envié tu solicitud de ${pct} % a Jefatura Comercial.`,cotizacion:this.actualizar()};},
  async decidirDescuento(id,decision,pct){const s=this.q.aprobaciones[0];assert.equal(s.estado,'PENDIENTE_JEFATURA');assert.equal(decision,'APROBAR');calcularLineas(this.q.items.map(x=>({...x,...defs[x.id_producto],precio_unitario:defs[x.id_producto].precio})),pct);s.estado='OFERTADO';s.ofrecido_pct=Number(pct);return {mensaje:'Jefatura autorizó ofrecer el descuento.'};},
- async clienteRespondeDescuento(id,acepta){assert.equal(acepta,true);this.q.aprobaciones[0].estado='ACEPTADA_CLIENTE';this.q.descuento_pct=this.q.aprobaciones[0].ofrecido_pct;this.q.estado='EN_NEGOCIACION';this.q.version++;return {mensaje:`Aceptaste el descuento de ${this.q.descuento_pct} %.`,cotizacion:this.actualizar()};},
+ async clienteRespondeDescuento(id,acepta){if(!acepta){this.q.aprobaciones[0].estado='RECHAZADA_CLIENTE';this.q.estado='EN_NEGOCIACION';return {mensaje:'Rechazaste la oferta de Jefatura; se puede renegociar.'};}this.q.aprobaciones[0].estado='ACEPTADA_CLIENTE';this.q.descuento_pct=this.q.aprobaciones[0].ofrecido_pct;this.q.estado='EN_NEGOCIACION';this.q.version++;return {mensaje:`Aceptaste el descuento de ${this.q.descuento_pct} %.`,cotizacion:this.actualizar()};},
  async confirmarPedido(){
   assert.equal(this.q.entrega_aceptada,true);assert.equal(this.q.direccion_confirmada,true);assert.notEqual(this.q.forma_pago,'SIN_DEFINIR');
   assert.equal(this.q.aprobaciones.some(x=>['PENDIENTE_JEFATURA','OFERTADO'].includes(x.estado)),false);
@@ -105,6 +111,50 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   assert.deepEqual(m.q.items.map(x=>x.cantidad),[10,30]);
   const directo=await paso('correcto, pero puedes aumentar 5 cajas mas a la leche evaporada por fa',/15 cajas.*30 cajas/i);
   assert.deepEqual(directo.cotizacion.items.map(x=>x.cantidad),[15,30]);
+  m.reiniciar(false);
+  // La conversación nueva: precio de ambas leches antes de confirmar, estado
+  // de Jefatura, contraoferta y dirección recibida en varios mensajes.
+  await paso('quiero pedir 10 cajas de leche frescaa y 30 de evaporada',/10 cajas.*30 cajas/i);
+  assert.equal(m.q,null);
+  const precioPendiente=await paso('correcto, sabes cual es el precio?',/precios de lista/i);
+  assert.match(precioPendiente.respuesta,/Leche Fresca.*62\.00/i);
+  assert.match(precioPendiente.respuesta,/Leche Evaporada.*58\.00/i);
+  assert.match(precioPendiente.respuesta,/confirmas esas cantidades/i);
+  assert.equal(m.q,null);
+  const dosLeches=await paso('Sí',/10 cajas.*30 cajas/i);
+  assert.deepEqual(dosLeches.cotizacion.items.map(x=>x.cantidad),[10,30]);
+  await paso('el preceio de cada tipo de leche cual es?',/Leche Evaporada.*Leche Fresca/i);
+  await paso('la siguiente semana, para el proximo viernes',/2026-11-20/);
+  await paso('claro, acepto la propuesta',/pagar|cr[eé]dito|contado/i);
+  await paso('bueno quiero usar mi credito',/descuento/i);
+  await paso('quisiera hacer un 10 porciento de descuento',/Jefatura/i);
+  assert.equal(m.q.aprobaciones[0].solicitado_pct,10);
+  await m.decidirDescuento(idQ,'APROBAR',9);
+  m.q.aprobaciones[0].comentario='El margen solo permite ofrecer 9%.';
+  await paso('como fue eso de mi descuento?',/9.*Observaci[oó]n de Jefatura/i);
+  await paso('lo aprobaron o no?',/9.*Observaci[oó]n de Jefatura/i);
+  const otraOferta=await paso('nono quiero un descuento del 10%',/oferta de 9%/i);
+  assert.equal(otraOferta.cotizacion.aprobaciones[0].estado,'OFERTADO');
+  assert.equal(otraOferta.cotizacion.aprobaciones.length,1);
+  await paso('Acepto el descuento',/direcci[oó]n/i);
+  const registrada=await paso('Jr. Demostración 450, Santa Anita',/Direcci[oó]n confirmada/i);
+  assert.equal(registrada.cotizacion.id_direccion,'DIR-LA-02');
+  await paso('Quiero cambiar la dirección',/calle.*n[uú]mero.*distrito/i);
+  await paso('santarosa lima, los olivos',/Anot[eé] Los Olivos.*n[uú]mero/i);
+  const incompleta=await paso('avenina los valles, calle 16 en los OLIVOS',/n[uú]mero del inmueble/i);
+  assert.equal(incompleta.cotizacion.id_direccion,'DIR-LA-02');
+  const nueva=await paso('calle palmera, 120 y olivos',/calle palmera, 120.*Los Olivos.*confirmas/i);
+  assert.equal(nueva.cotizacion.id_direccion,'DIR-LA-02');
+  const direccionConfirmada=await paso('Sí',/Direcci[oó]n confirmada.*calle palmera, 120/i);
+  assert.equal(direccionConfirmada.cotizacion.distrito,'Los Olivos');
+  assert.equal(direccionConfirmada.cotizacion.direccion,'calle palmera, 120');
+  await paso('Quiero cambiar la dirección',/calle.*n[uú]mero.*distrito/i);
+  await paso('calle Robles',/distrito/i);
+  await paso('Miraflores',/n[uú]mero del inmueble/i);
+  const otraNueva=await paso('123',/calle Robles 123.*Miraflores.*confirmas/i);
+  assert.equal(otraNueva.cotizacion.distrito,'Los Olivos');
+  const otraConfirmada=await paso('Sí',/Direcci[oó]n confirmada.*calle Robles 123/i);
+  assert.equal(otraConfirmada.cotizacion.distrito,'Miraflores');
   m.reiniciar(false);
   // Reproduce el diálogo real de Sebastián, incluida la fecha expresada en palabras.
   await paso('buenas, quiero pedir varios productos',/leches|productos/i);
