@@ -38,3 +38,18 @@ test('Los días de la semana se convierten en la próxima fecha',()=>{
 test('El agente reconoce su propia pregunta de confirmación en el tono nuevo',()=>{
   assert.equal(ultimaRespuestaPidePedido('¡Listo, ya tenemos todo! Abajo te dejo el resumen de tu pedido. ¿Lo confirmo con estas condiciones?'),true);
 });
+
+test('Si el cliente se presenta, se le recibe con calidez y se orienta, sin preguntar «con la leche»',async()=>{
+  const {respuestaRespaldo,intencionVerificableSinLLM,pulirRespuesta}=await import('../lib/ai.js');
+  for(const texto of ['soy chaparro','Soy Chaparro','hola soy chaparro','me llamo Rosa Valdivia']){
+    assert.equal(intencionVerificableSinLLM(texto),true,texto);
+    assert.match(respuestaRespaldo(texto),/^Mucho gusto, [A-ZÁÉÍÓÚÑ]/);
+    assert.match(respuestaRespaldo(texto),/Bienvenido a Gloria.*UHT, evaporada o fresca/);
+  }
+  assert.match(respuestaRespaldo('soy chaparro'),/Chaparro/);
+  assert.equal(intencionVerificableSinLLM('soy un cliente nuevo'),false,'«soy un…» no es un nombre');
+  const pulida=pulirRespuesta('¡Hola Chaparro! 😊 ¿En qué puedo ayudarte con la leche hoy?');
+  assert.doesNotMatch(pulida,/con la leche|😊/);
+  assert.match(pulida,/¡Hola Chaparro!.*¿Qué te gustaría cotizar hoy: leche UHT, evaporada o fresca\?/);
+  assert.equal(pulirRespuesta('Claro, te muestro los precios.'),'Claro, te muestro los precios.');
+});
