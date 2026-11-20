@@ -92,3 +92,16 @@ test('Si DeepSeek responde en blanco y la clave de Groq es inválida se usan reg
   assert.equal(groq,1,'una clave inválida no se prueba con el otro modelo de Groq');
   assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/HTTP 401/);
 }));
+
+test('Por defecto responde DeepSeek primero y Groq queda de respaldo',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  const urls=[];
+  globalThis.fetch=async(u)=>{urls.push(u.includes('deepseek')?'deepseek':'groq');return u.includes('deepseek')?json({error:{code:'x'}},503):buena('Hola desde Groq');};
+  const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+  assert.equal(urls[0],'deepseek');assert.ok(urls.includes('groq'));assert.equal(r.proveedor_ia,'groq');
+}));
+test('Con IA_PROVEEDOR_PRIMERO=groq se invierte el orden sin tocar código',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek',IA_PROVEEDOR_PRIMERO:'groq'},async()=>{
+  const urls=[];
+  globalThis.fetch=async(u)=>{urls.push(u.includes('deepseek')?'deepseek':'groq');return buena('Hola');};
+  const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+  assert.deepEqual(urls,['groq']);assert.equal(r.proveedor_ia,'groq');
+}));
