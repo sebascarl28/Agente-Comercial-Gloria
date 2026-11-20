@@ -13,6 +13,7 @@ import {atenderFechaRelativa,aclararFechaCantidad,preguntaFechaDisponible,respon
 import {interpretarPedidoNuevo,hayLineaNoReconocida} from '../lib/interpretacion-pedido.js';
 import {pidePrecio,preferenciasPrecio,respuestaPrecios,respuestaTotalCotizacion} from '../lib/precios-conversacion.js';
 import {explicarStockDeCotizacion} from '../lib/respuesta-stock.js';
+import {confirmacionFlexible} from '../lib/flexibilidad.js';
 import {recuperarContexto,leerTurno,estadoAnterior,esAfirmacion,esNegacion,productoExplicito,esConfirmacionCorta,confirmaReduccion,esAceptacionDescuento,ultimaRespuestaPidePedido,ultimaRespuestaPideDescuento,esAceptacionEntrega,esAceptacionEntregaIA,esAceptacionDireccion,coincideFechaPropuesta,esConsultaStock,esTodoStock,esPreguntaFaltanteEntrega,mencionaRepartoConAceptacion,aceptaRepartoPropuesto,detectarProducto,pideAgregarProducto} from '../lib/dialogo.js';
 import {contextoCliente,crearCotizacion,crearCotizacionLineas,modificarCotizacion,detalleCotizacion,solicitarDescuento,proponerEntrega,confirmarDireccion,definirPago,confirmarPedido,clienteRespondeDescuento,clienteRespondeCredito,aceptarEntrega,disponibilidad,cambiarLinea,cambiarLineas} from '../lib/service.js';
 import {repartoSugerido,fechaLimaHoy,sumarDias,fechaCobertura,MAX_DESCUENTO_AGENTE,MAX_DESCUENTO_JEFATURA} from '../lib/rules.js';
@@ -106,7 +107,9 @@ async function encontrarSesion(id,idCliente){
 async function atender(req,res){
  try{
   metodo(req,['POST']);
-  const texto=obligatorio(req.body?.mensaje,'Mensaje',1200);
+  const textoCliente=obligatorio(req.body?.mensaje,'Mensaje',1200);
+  // `texto` es lo que ven las reglas: igual al mensaje, salvo una respuesta de sí/no que se interpreta con seguridad (ver lib/flexibilidad.js).
+  let texto=textoCliente;
   const idCliente=req.body?.id_cliente;
   const contexto=await contextoCliente(idCliente);
   const sesion=await encontrarSesion(req.body?.id_conversacion,idCliente);
@@ -131,6 +134,8 @@ async function atender(req,res){
    cotizacion:q?{producto:q.producto_nombre,items:q.items?.map(x=>({id:x.id_producto,nombre:x.producto_nombre,cajas:x.cantidad})),cantidad:q.cantidad,descuento:q.descuento_pct,estado:q.estado,entrega_aceptada:q.entrega_aceptada,pago:q.forma_pago,entregas:q.entregas}:null,
    historial:Array.isArray(sesion.mensajes)?sesion.mensajes:[]
   });
+  const confirmacion=confirmacionFlexible(textoCliente,interpretacion,estado);
+  if(confirmacion)texto=confirmacion.valor==='SI'?'sí':'no';
   const d=leerTurno(texto,{estado,cotizacion:q,interpretacion});
   const productoDicho=productoExplicito(texto);
   if(!q && d.accion==='AGREGAR_PRODUCTO' && productoDicho && d.cantidad)d.accion='CANTIDAD';
@@ -150,7 +155,7 @@ async function atender(req,res){
   const pedidoInseguro=!precios && !cambio && !!q && !d.modo && !d.fecha && !fechaRelativa && !esConsultaStock(texto) && !esPreguntaFaltanteEntrega(texto) && hayLineaNoReconocida(texto);
   const seleccion=(cerrado||consultaEstado||limiteDescuento||consultaFecha||precios||propuestaPedido||pedidoInseguro||cambio||solicitaPC3||orientacion||pideLeche||fechaRelativa||aclaracionFecha)?null:avanzarSeleccion(texto,estado,q,interpretacion);
   if(productoDicho && !q && !precios && !propuestaPedido)estado.producto=productoDicho;
-  let mensaje='',observacion='Reglas ERP/CRM verificadas';
+  let mensaje='',observacion=(confirmacion?.via==='ia'||d.fechaViaIA)?'Interpretación de la IA validada por reglas ERP/CRM':'Reglas ERP/CRM verificadas';
   const mayorDeUno=ctx=>ctx.cantidad_pendiente&&ctx.cantidad_pendiente>0;
   const nuevaCotizacion=async(prod,cant)=>{
     if(!prod){estado.cantidad_pendiente=cant;estado.esperando='PEDIR_PRODUCTO';return null;}
@@ -568,7 +573,7 @@ async function atender(req,res){
   if(q?.id_cotizacion)q=await detalleCotizacion(q.id_cotizacion);
   const ahora=()=>new Date().toISOString();
   const mensajes=[...(Array.isArray(sesion.mensajes)?sesion.mensajes:[]),
-   {rol:'cliente',texto,fecha:ahora()},
+   {rol:'cliente',texto:textoCliente,fecha:ahora()},
    {rol:'agente',texto:mensaje,fecha:ahora(),motor:interpretacion.motor,observacion,estado_chat:estado}
   ].slice(-60);
   await consulta('UPDATE conversaciones SET mensajes=$2::jsonb,id_cotizacion=$3,actualizado_en=now() WHERE id_conversacion=$1',[sesion.id_conversacion,JSON.stringify(mensajes),q?.id_cotizacion||null]);
