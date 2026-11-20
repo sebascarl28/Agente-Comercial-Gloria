@@ -155,6 +155,14 @@ test('Recorridos manuales completos: normal, PC3 y aprobación de Jefatura',{ski
   assert.equal(otraNueva.cotizacion.distrito,'Los Olivos');
   const otraConfirmada=await paso('Sí',/Direcci[oó]n confirmada.*calle Robles 123/i);
   assert.equal(otraConfirmada.cotizacion.distrito,'Miraflores');
+  const cambio=await paso('quiero agregar 5 cajas más de leche evaporada',/descuento anterior de 9% requiere otra evaluaci[oó]n/i);
+  assert.deepEqual(cambio.cotizacion.items.map(x=>x.cantidad),[10,35]);
+  assert.equal(cambio.cotizacion.forma_pago,'CREDITO');
+  assert.equal(cambio.cotizacion.direccion,'calle Robles 123');
+  const renovar=await paso('acepto',/Volv[ií] a solicitar tu descuento de 9%/i);
+  assert.equal(renovar.cotizacion.aprobaciones[0].estado,'PENDIENTE_JEFATURA');
+  assert.equal(renovar.cotizacion.forma_pago,'CREDITO');
+  assert.equal(renovar.cotizacion.direccion_confirmada,true);
   m.reiniciar(false);
   // Reproduce el diálogo real de Sebastián, incluida la fecha expresada en palabras.
   await paso('buenas, quiero pedir varios productos',/leches|productos/i);

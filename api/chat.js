@@ -420,7 +420,20 @@ async function atender(req,res){
    } else if(estado.esperando==='ELEGIR_FECHA' && q && d.accion==='SI' && esConfirmacionCorta(texto) && cobertura(q).faltante===0){
      const r=await proponerEntrega(q.id_cotizacion,{modo:'TODO_DESPUES',fecha:sumarDias(estado.hoy,1)});q=r.cotizacion;estado.esperando='ACEPTAR_ENTREGA';mensaje=r.mensaje;
    } else if(estado.esperando==='ACEPTAR_ENTREGA' && q?.entregas?.length && !q.entrega_aceptada && (esConfirmacionCorta(texto)||esAceptacionEntrega(texto)||esAceptacionEntregaIA(texto,interpretacion))){
-     const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;
+     const r=await aceptarEntrega(q.id_cotizacion,true);q=r.cotizacion;
+     const descuento=estado.descuento_por_renovar;
+     delete estado.descuento_por_renovar;
+     if(descuento){
+       try{
+         const nuevaSolicitud=await solicitarDescuento(q.id_cotizacion,descuento);
+         q=nuevaSolicitud.cotizacion;estado.descuento_consultado=true;
+         mensaje=`${r.mensaje}\nVolví a solicitar tu descuento de ${descuento}% para las cantidades nuevas. ${nuevaSolicitud.mensaje}\n${siguienteNatural(q,estado)}`;
+       }catch(err){
+         if(!Number(err.status)||Number(err.status)>=500)throw err;
+         estado.descuento_consultado=false;estado.esperando='DESCUENTO_OPCIONAL';
+         mensaje=`${r.mensaje}\nNo pude renovar el ${descuento}% con estas cantidades: ${err.message} ¿Quieres solicitar otro porcentaje o continuar sin descuento?`;
+       }
+     }else mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;
    } else if(q && pendientesDescuento(q)?.estado==='OFERTADO' && esAfirmacion(texto) && /descuento|jefatura|porcentaje/.test(d.textoNormalizado)){
      const r=await clienteRespondeDescuento(pendientesDescuento(q).id_solicitud,true);q=r.cotizacion;estado.descuento_consultado=true;mensaje=`${r.mensaje}\n${siguienteNatural(q,estado)}`;
    } else if(d.accion==='SIN_DESCUENTO'){

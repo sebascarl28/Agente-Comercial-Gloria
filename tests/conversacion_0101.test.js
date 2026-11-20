@@ -34,6 +34,18 @@ test('Una petición vaga no inventa la variedad y «aumenta a» fija el total',(
  interpretarPedidoNuevo('correcto, pero quiero agregar 5 cajas de evaporada',estado,null,{});
  assert.deepEqual(pares(estado.propuesta_productos),[['PRD-002',30],['PRD-003',40]]);
 });
+test('Leche escrita pegada y aclaración posterior conservan las cajas por sumar',()=>{
+ const estado={};
+ interpretarPedidoNuevo('quiero 20 cajas de leche fresaca y 10 de leche evaporada',estado,null,{motor:'groq',quiere_cambiar_productos:true,lineas_sugeridas:[{id:'PRD-003',cantidad:20},{id:'PRD-002',cantidad:10}]});
+ const r=interpretarPedidoNuevo('puedo agregar 10 cajas mas de lecheevaporada a mi solicitud?',estado,null,{});
+ assert.deepEqual(pares(estado.propuesta_productos),[['PRD-003',20],['PRD-002',20]]);
+ assert.match(r.mensaje,/20 cajas de leche fresca y 20 cajas de leche evaporada/);
+ const otro={propuesta_productos:[{id:'PRD-003',cantidad:20},{id:'PRD-002',cantidad:10}]};
+ interpretarPedidoNuevo('súmale 5 cajas',otro,null,{});
+ assert.deepEqual(otro.ajuste_pendiente,{cantidad:5,modo:'AGREGAR'});
+ interpretarPedidoNuevo('a la de leche evaporada',otro,null,{});
+ assert.deepEqual(pares(otro.propuesta_productos),[['PRD-003',20],['PRD-002',15]]);
+});
 
 test('Elegir crédito y decir porcentaje en palabras funciona sin proveedor de IA',()=>{
  const estado={esperando:'ELEGIR_PAGO',hoy:'2026-11-19'};
@@ -51,4 +63,5 @@ test('Elegir crédito y decir porcentaje en palabras funciona sin proveedor de I
 test('«Sí, pero…» nunca acepta silenciosamente una propuesta',()=>{
  assert.equal(confirmacionFlexible('sí, pero agrega más cajas',{}, {esperando:'CONFIRMAR_PRODUCTOS_INTERPRETADOS'}),null);
  assert.equal(confirmacionFlexible('correcto, pero quiero cambiar algo',{}, {esperando:'CONFIRMAR_PRODUCTOS_INTERPRETADOS'}),null);
+ assert.equal(confirmacionFlexible('si por fa vor',{}, {esperando:'ACEPTAR_DIRECCION_NUEVA'}).valor,'SI');
 });

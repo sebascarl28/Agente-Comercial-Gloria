@@ -23,7 +23,7 @@ test('Mantiene y revalida la fecha, exige aceptación y vuelve a consultar descu
  const estado={descuento_consultado:true,confirmacion_final:'anterior',cambio_multi:{}};
  const actual={...q,version:4,descuento_pct:0,entregas:[]};let llamadas=0;
  const r=await revisarTrasCambio(q,actual,estado,async(id,datos)=>{llamadas++;assert.equal(id,'Q1');assert.deepEqual(datos,{modo:'TODO_DESPUES',fecha:'2026-11-14'});return {mensaje:'Propuesta revisada. ¿Aceptas?',cotizacion:{...actual,entregas:q.entregas,entrega_aceptada:false}};});
- assert.equal(llamadas,1);assert.equal(r.cotizacion.entrega_aceptada,false);assert.equal(estado.esperando,'ACEPTAR_ENTREGA');assert.equal(estado.descuento_consultado,false);assert.equal(estado.confirmacion_final,null);assert.match(r.mensaje,/7%.*nueva evaluación/);
+ assert.equal(llamadas,1);assert.equal(r.cotizacion.entrega_aceptada,false);assert.equal(estado.esperando,'ACEPTAR_ENTREGA');assert.equal(estado.descuento_consultado,false);assert.equal(estado.descuento_por_renovar,7);assert.equal(estado.confirmacion_final,null);assert.match(r.mensaje,/7%.*otra evaluación/);
 });
 test('Si la fecha no cubre las nuevas cantidades, no se promete ni revierte la modificación',async()=>{
  const actual={...q,version:4,entregas:[]};const estado={};
