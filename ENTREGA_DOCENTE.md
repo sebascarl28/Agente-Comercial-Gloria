@@ -1,5 +1,7 @@
 # Entrega del Agente Comercial Gloria — GE703 PC3
 
+**Enlaces para el docente:** [Aplicación desplegada](https://agente-comercial-gloria.vercel.app/) · [Video de la prueba](https://youtu.be/c_QibJL2jXM) · [Repositorio GitHub](https://github.com/sebascarl28/Agente-Comercial-Gloria). La grabación es respaldo: el caso normal y la excepción se ejecutan también en vivo desde la aplicación.
+
 Este repositorio contiene un **prototipo académico** con datos sintéticos. Descarga el paquete desde GitHub: **Code → Download ZIP** en la rama `main`. El ZIP incluye:
 
 | Contenido | Ubicación |
@@ -13,9 +15,9 @@ Este repositorio contiene un **prototipo académico** con datos sintéticos. Des
 
 ## Ejecutar y evaluar
 
-1. Se requiere Node.js **20 o posterior**, una base PostgreSQL en Supabase, un proyecto Vercel y, para conversación con IA, una cuenta/API key de Groq. La dependencia npm directa es `pg` (`^8.13.0`), declarada en `package.json`; `npm install` obtiene sus dependencias transitivas. No se distribuye `node_modules`.
+1. Se requiere Node.js **20 o posterior**, una base PostgreSQL en Supabase, un proyecto Vercel y, para conversación con IA, una cuenta/API key de DeepSeek o Groq. La dependencia npm directa es `pg` (`^8.13.0`), declarada en `package.json`; `npm install` obtiene sus dependencias transitivas. No se distribuye `node_modules`.
 2. En una base **nueva**, ejecutar los cinco archivos de `sql/` en orden numérico. Contienen exclusivamente datos de demostración; el escenario PC3 incluye 360 cajas, un faltante de 20 de evaporada y producción prevista. No volver a ejecutar la carga inicial sobre una base que ya esté en uso.
-3. En Vercel, importar este repositorio y configurar `DATABASE_URL`, `GROQ_API_KEY` y, opcionalmente, `GROQ_MODEL`. No hay PIN de acceso a la demo, Finanzas o Jefatura. Los pasos de despliegue y límites de la simulación se explican en `README.md`. El chat funciona en modo guiado cuando Groq no está disponible, con respuestas conversacionales más limitadas.
+3. En Vercel, importar este repositorio y configurar `DATABASE_URL` y al menos una de `DEEPSEEK_API_KEY` o `GROQ_API_KEY`; `GROQ_MODEL` es opcional. No hay PIN de acceso a la demo, Finanzas o Jefatura. Los pasos de despliegue y límites de la simulación se explican en `README.md`. El chat funciona en modo guiado cuando ninguna IA está disponible, con respuestas conversacionales más limitadas.
 4. Para verificar el código sin credenciales: `npm install`, `npm test` y `npm run check`. Para evaluar la aplicación desplegada: [agente-comercial-gloria.vercel.app](https://agente-comercial-gloria.vercel.app/). La vista **Venta normal** muestra el flujo común; **Caso PC3 · 360 cajas** muestra el faltante y el escalamiento. Usa **Nueva simulación** antes de cada recorrido independiente.
 
 ## Accesos y privacidad
@@ -44,6 +46,6 @@ Antes de la demo, abrir `/api/health?groq=1` (por ejemplo `https://agente-comerc
 | El caso no muestra la parada de la cerradora ni OP-EVA-1711 | Se abrió la demo general | Entrar con `?escenario=pc3` |
 | El chat pregunta «¿de qué leche?» en vez de armar las 360 cajas | No se usó la frase que activa el caso | Pulsar el botón «▶ Iniciar caso PC3 · 360 cajas» (o escribir «Quiero preparar el caso PC3 del informe»); las fechas aparecen en el recuadro «Caso PC3 · Datos del escenario» |
 
-Orden de respaldo de la IA: modelo principal de Groq → segundo modelo de Groq → DeepSeek (solo si existe `DEEPSEEK_API_KEY`) → reglas locales. Fechas del caso PC3: son relativas al día en que se crea la simulación y siempre caen en día hábil. La parada de la cerradora es ese día (D), la primera entrega pedida es D+3 (o el siguiente día hábil) y las 20 cajas de evaporada llegan el día hábil siguiente. En el informe equivale a 13, 16 y 17 de noviembre de 2026. Cada pestaña nueva o «Nueva simulación» toma el día actual y la propia aplicación ajusta las fechas de esa copia; no hay que ejecutar nada en Supabase (`sql/05_escenario_pc3_360.sql` sigue siendo el punto de partida con las fechas del informe). Para iniciar el caso basta pulsar el botón «▶ Iniciar caso PC3 · 360 cajas».
+Orden de la IA: DeepSeek (si existe DEEPSEEK_API_KEY) → modelo principal de Groq → segundo modelo de Groq → reglas locales. Con IA_PROVEEDOR_PRIMERO=groq el orden se invierte (Groq → DeepSeek). Si una IA falla, el agente pasa a la siguiente y, si todas fallan, usa las reglas locales. Fechas del caso PC3: son relativas al día en que se crea la simulación y siempre caen en día hábil. La parada de la cerradora es ese día (D), la primera entrega pedida es D+3 (o el siguiente día hábil) y las 20 cajas de evaporada llegan el día hábil siguiente. En el informe equivale a 13, 16 y 17 de noviembre de 2026. Cada pestaña nueva o «Nueva simulación» toma el día actual y la propia aplicación ajusta las fechas de esa copia; no hay que ejecutar nada en Supabase (`sql/05_escenario_pc3_360.sql` sigue siendo el punto de partida con las fechas del informe). Para iniciar el caso basta pulsar el botón «▶ Iniciar caso PC3 · 360 cajas».
 
 Variables opcionales de ajuste: `GROQ_MODEL`, `GROQ_MODEL_RESPALDO`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` y `GROQ_TIMEOUT_MS` (por defecto 7000 ms por intento). La respuesta del chat incluye `proveedor_ia` (`groq` o `deepseek`) para la bitácora.

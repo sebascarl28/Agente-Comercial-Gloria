@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {leerTurno,estadoAnterior,productoExplicito,cantidadExplicita,esTodoStock,esConsultaStock} from '../lib/dialogo.js';
+import {leerTurno,estadoAnterior,productoExplicito,cantidadExplicita,esTodoStock,esConsultaStock,direccionCompleta} from '../lib/dialogo.js';
 import {repartoSugerido} from '../lib/rules.js';
 const ctx={estado:{producto:'PRD-003',esperando:'PEDIR_CANTIDAD',hoy:'2026-11-13'},interpretacion:{accion:'conversar'}};
 const leer=(t,x=ctx)=>leerTurno(t,x);
@@ -48,6 +48,31 @@ test('Crédito y nueva dirección en un mismo mensaje',()=>{
   assert.equal(r.accion,'PAGO');assert.equal(r.pago,'CREDITO');
   assert.equal(r.direccion.distrito,'Ate');
   assert.equal(r.direccion.direccion,'calle 17');
+});
+test('Una dirección puede completarse en varios turnos sin registrar datos ambiguos',()=>{
+  const estado={esperando:'PEDIR_DIRECCION',hoy:'2026-11-20',direccion_borrador:{direccion:'calle Palmera'}};
+  const distrito=leerTurno('Miraflores',{estado,interpretacion:{accion:'conversar'}});
+  assert.equal(distrito.accion,'DIRECCION');assert.equal(distrito.direccion.distrito,'Miraflores');
+  assert.equal(leerTurno('calle Palmera',{estado,interpretacion:{accion:'conversar'}}).direccion.distrito,null);
+  assert.equal(leerTurno('120',{estado,interpretacion:{accion:'conversar'}}).direccion.direccion,'calle Palmera 120');
+  assert.equal(direccionCompleta('calle Palmera 120'),true);
+  assert.equal(direccionCompleta('avenina los valles, calle 16'),false);
+  assert.equal(direccionCompleta('calle 1231'),false);
+});
+test('La IA puede clasificar una consulta vaga, pero la oferta viene del estado validado',()=>{
+  const cotizacion={aprobaciones:[{estado:'OFERTADO',solicitado_pct:10,ofrecido_pct:9}]};
+  const resultado=leerTurno('¿me informas el resultado?',{estado:{hoy:'2026-11-20'},cotizacion,interpretacion:{proveedor_ia:'deepseek',accion:'consultar',tema_consulta:'general'}});
+  assert.equal(resultado.accion,'CONSULTAR');assert.equal(resultado.consulta,'descuento');
+  const cambio=leerTurno('quiero 10 % más',{estado:{hoy:'2026-11-20'},cotizacion,interpretacion:{proveedor_ia:'deepseek',accion:'consultar',tema_consulta:'descuento'}});
+  assert.notEqual(cambio.accion,'CONSULTAR');
+});
+test('El porcentaje escrito con palabras conserva la cifra aun si la IA propone otra',()=>{
+  const estado={esperando:'PEDIR_DESCUENTO',hoy:'2026-11-20'};
+  const ia={proveedor_ia:'deepseek',accion:'descuento',descuento_pct:9};
+  assert.equal(leerTurno('quiero diez por ciento de descuento',{estado,interpretacion:ia}).descuentoPct,10);
+  assert.equal(leerTurno('quiero un descuento',{estado,interpretacion:ia}).descuentoPct,null);
+  assert.equal(leerTurno('quiero quince por ciento de descuento',{estado,interpretacion:{...ia,descuento_pct:15}}).descuentoPct,15);
+  assert.equal(leerTurno('quiero diez por ciento de descuento',{estado,interpretacion:{accion:'conversar'}}).descuentoPct,10);
 });
 test('Respuestas comerciales y descuento opcional',()=>{
   assert.equal(leer('sin descuento').accion,'SIN_DESCUENTO');

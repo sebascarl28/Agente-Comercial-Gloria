@@ -64,5 +64,5 @@ test('servidor prioriza contexto PC3 antes que interpretar cantidad adicional',(
 test('UI informa al usuario cuando usa reglas ERP/CRM sin consumir cuota',()=>{
   const ui=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
   assert.match(ui,/reglas_contextuales/);
-  assert.match(ui,/sin consumir cuota Groq/);
+  assert.match(ui,/sin consumir cuota de IA/);
 });

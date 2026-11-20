@@ -63,3 +63,12 @@ test('Cambiar una cantidad entre tres productos conserva las otras líneas',()=>
  assert.equal(interpretarCambio('cambia evaporada a 18',{}, {...cot,estado:'CONFIRMADA'}),null);
  assert.match(interpretarCambio('cambia a 25 cajas',{},cot).mensaje,/qué leche/);
 });
+test('sumar diez cajas más de fresca conserva la evaporada y la versión',()=>{
+ const cot={estado:'BORRADOR',version:9,items:[{id_producto:'PRD-003',cantidad:20},{id_producto:'PRD-002',cantidad:10}]};
+ for(const frase of ['oye puede agregarle 10 cajas mas de leceh fresca','agrega 10 cajas de fresca','quiero 10 cajas más de leche fresca','correcto, pero puedes aumentar 10 cajas mas a la leche fresca por fa','aumentale 10 cajas a la leche fresca']){
+   const r=interpretarCambio(frase,{},cot);
+   assert.equal(r.modo,'AGREGAR',frase);assert.equal(r.version,9,frase);
+   assert.deepEqual(r.operaciones,[{id:'PRD-003',cantidad:10}],frase);
+ }
+ assert.equal(interpretarCambio('no quiero agregar 10 cajas más de fresca',{},cot)?.modo,undefined);
+});

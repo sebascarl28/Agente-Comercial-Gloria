@@ -2,10 +2,14 @@
 
 Prototipo académico **independiente del proyecto previo**. Asesor B2B de productos lácteos, diseñado para **Comercial La Alameda S.A.C.** y clientes mayoristas/distribuidores.
 
+**Abrir la demostración:** [Agente Comercial Gloria en Vercel](https://agente-comercial-gloria.vercel.app/) · [Video de prueba](https://youtu.be/c_QibJL2jXM) · [Código en GitHub](https://github.com/sebascarl28/Agente-Comercial-Gloria).
+
+El video documenta un recorrido; para la evaluación en vivo, abrir la página y pulsar **Nueva simulación** antes de iniciar cada caso.
+
 ## Qué incluye el prototipo
 
 - Interfaz responsive blanca y azul: chat principal, Clientes, Productos (con imágenes ilustrativas), Cotizaciones, Pedidos, Stock/Lotes, Plan de Producción, Finanzas y Jefatura Comercial.
-- **Groq** interpreta el lenguaje natural y conversa. El backend, no la IA, consulta PostgreSQL y aplica reglas de negocio. Si falta la API de Groq, el chat funciona de manera **guiada** (mensajes más limitados; se indica en pantalla).
+- **DeepSeek** interpreta primero el lenguaje natural cuando hay una clave configurada; después se prueban Groq y su segundo modelo como respaldo. El backend, no la IA, consulta PostgreSQL y aplica reglas de negocio. Si ninguna API responde, el chat funciona en modo guiado (mensajes más limitados; se indica en pantalla).
 - **La Alameda**: línea de crédito sintética de **S/ 30 000 a 30 días** aprobada previamente.
 - Stock inicial de UHT: **250 cajas liberadas + 40 en inspección que NO cuentan como disponibles**; producción programada de **50 adicionales**, disponibles tentativamente a los seis días desde la carga del SQL.
 - Caso normal y excepción por stock, opciones de entrega parcial voluntaria o por faltante, fechas propuestas por el cliente y sugeridas por el ERP simulado.
@@ -42,11 +46,12 @@ Repositorio: **`sebascarl28/Agente-Comercial-Gloria`**. El código vive en `publ
 | Variable | Contenido |
 |---|---|
 | `DATABASE_URL` | URI privado PostgreSQL de **tu nuevo proyecto Supabase**. |
-| `GROQ_API_KEY` | Tu clave de Groq para interpretar mensajes. |
+| `GROQ_API_KEY` | Tu clave de Groq para respaldo de la conversación. |
 | `GROQ_MODEL` | `openai/gpt-oss-120b` (puedes sustituir por un modelo soportado en tu cuenta). |
-| `DEEPSEEK_API_KEY` | (Opcional) Clave de DeepSeek. Si existe, se usa como respaldo cuando Groq falla. Solo en Vercel o en tu `.env` local; nunca en el repositorio. |
+| `DEEPSEEK_API_KEY` | (Opcional) Clave de DeepSeek. Si existe, se usa primero. Solo en Vercel o en tu `.env` local; nunca en el repositorio. |
 | `DEEPSEEK_MODEL` | (Opcional) `deepseek-flash` por defecto. |
 | `GROQ_MODEL_RESPALDO` | (Opcional) Segundo modelo de Groq; por defecto `openai/gpt-oss-20b`. |
+| `IA_PROVEEDOR_PRIMERO` | (Opcional) `groq` para invertir la prioridad; sin esta variable, DeepSeek va primero. |
 
 En ningún caso compartas `DATABASE_URL` ni claves Groq en chat, capturas de pantalla o archivos GitHub. Finanzas y Jefatura no requieren contraseña en esta demostración; sus decisiones siguen validadas por las reglas comerciales del backend.
 
@@ -97,6 +102,20 @@ npm run check
 ```
 
 Para ejecución local de API/cliente se necesita configuración del proyecto de Vercel y las variables privadas; puedes usar `npx vercel dev` con la cuenta correspondiente.
+
+## 7. Guía para evaluar el agente
+
+| Aspecto solicitado | Implementación y evidencia |
+|---|---|
+| Propósito, entradas y salidas | Atiende pedidos B2B. Recibe texto del cliente, variedad, cajas, fechas, pago y dirección; entrega cotización versionada, propuesta por producto y, tras confirmación, pedido. |
+| Fuentes y herramientas | Catálogo, lotes liberados, planes de producción, línea de crédito y direcciones sintéticos en PostgreSQL; navegador, API de Vercel y proveedor de IA. No hay SAP real. |
+| Reglas, permisos y responsable | `lib/service.js` valida stock, Calidad, margen, crédito y reserva. El cliente acepta entregas y ofertas. Jefatura decide descuentos especiales y Finanzas el crédito. En esta demo las pestañas no tienen autenticación; las decisiones son académicas. |
+| Escalamiento y bitácora | Descuentos superiores a 5 % pasan a Jefatura; crédito insuficiente a Finanzas; falta de cobertura a Planeamiento. Las conversaciones, versiones y aprobaciones quedan registradas por simulación. |
+| Supuestos y datos | Soles, cajas, IGV 18 %, crédito de ejemplo S/ 30 000 a 30 días y productos/direcciones ficticios. Las fechas logísticas son propuestas, nunca promesas; producción prevista depende de Calidad. |
+| Uso de IA y validación humana | DeepSeek/Groq proponen interpretaciones. El servicio valida antes de actuar; el cliente acepta condiciones y el humano decide excepciones comerciales. El equipo debe revisar el recorrido en vivo y las cifras del resumen. |
+| Fallos | Consultar `/api/health?groq=1` y Vercel → Logs. Si falla IA, probar el proveedor siguiente o reglas guiadas; si falla base de datos, revisar `DATABASE_URL`/pooler. Más detalles en `ENTREGA_DOCENTE.md`. |
+
+**Caso normal reproducible:** pulsa **Nueva simulación**, cotiza 10 cajas de fresca y 20 de evaporada, solicita fechas separadas, acepta las entregas, elige pago y confirma tras el resumen. **Excepción prioritaria:** inicia **Caso PC3 · 360 cajas**, observa 340 disponibles y 20 condicionadas a producción y liberación de Calidad, acepta una propuesta viable y muestra la autorización humana del descuento. Consulta `PRUEBAS_PC3.md` para resultados esperados; la validación observada se obtiene ejecutando las pruebas (`npm test`) y la demostración en vivo. El [video de prueba](https://youtu.be/c_QibJL2jXM) respalda la explicación, sin sustituir la ejecución en directo.
 
 ---
 

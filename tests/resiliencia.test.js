@@ -59,11 +59,49 @@ test('Si Groq falla se usa DeepSeek de respaldo con JSON y sin razonamiento',()=
   assert.equal(ds.u,'https://api.deepseek.com/chat/completions');assert.equal(ds.auth,'Bearer clave-deepseek');
   assert.equal(ds.cuerpo.response_format.type,'json_object');assert.deepEqual(ds.cuerpo.thinking,{type:'disabled'});
   assert.match(JSON.stringify(ds.cuerpo.messages[0].content),/JSON/);
+  assert.equal(llamadas.length,1,'DeepSeek responde primero sin consumir Groq');
 }));
-test('Con la clave de Groq inválida se prueba DeepSeek y una respuesta en blanco se descarta',()=>conEntorno({GROQ_API_KEY:'mala',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+test('Si DeepSeek falla se prueba Groq',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  const proveedores=[];
+  globalThis.fetch=async(u)=>{proveedores.push(u.includes('deepseek')?'deepseek':'groq');return u.includes('deepseek')?json({error:{code:'x'}},503):buena('Hola desde Groq');};
+  const r=await interpretar('hola asesor');
+  assert.deepEqual(proveedores,['deepseek','groq']);assert.equal(r.proveedor_ia,'groq');
+}));
+test('DeepSeek recupera una respuesta en blanco con otro formato y acepta JSON envuelto',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  const formatos=[];
+  globalThis.fetch=async(u,o)=>{
+    assert.match(u,/deepseek/,'no necesita llamar a Groq');
+    const cuerpo=JSON.parse(o.body);formatos.push(cuerpo.response_format.type);
+    return formatos.length===1?json({choices:[{message:{content:'    '}}]}):json({choices:[{message:{content:'Aquí está:\n```json\n{"accion":"cotizar","producto":"PRD-002","cantidad":20,"lineas_sugeridas":[{"id":"PRD-002","cantidad":20}]}\n```'}}]});
+  };
+  const r=await interpretar('necesito 20 cajas de evaporada');
+  assert.deepEqual(formatos,['json_object','text']);
+  assert.equal(r.proveedor_ia,'deepseek');assert.equal(r.cantidad,20);
+  assert.deepEqual(r.lineas_sugeridas,[{id:'PRD-002',cantidad:20}]);
+}));
+test('Una respuesta no estructurada de DeepSeek nunca autoriza una operación',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  let deepseek=0;
+  globalThis.fetch=async(u)=>{if(u.includes('deepseek')){deepseek++;return json({choices:[{message:{content:'Claro, pedido confirmado'}}]});}return buena('Groq validó la conversación');};
+  const r=await interpretar('hola asesor');
+  assert.equal(deepseek,3);assert.equal(r.proveedor_ia,'groq');
+}));
+test('Si DeepSeek responde en blanco y la clave de Groq es inválida se usan reglas locales',()=>conEntorno({GROQ_API_KEY:'mala',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
   let groq=0;
   globalThis.fetch=async(u)=>{if(u.includes('groq')){groq++;return json({error:{code:'invalid_api_key'}},401);}return json({choices:[{message:{content:'    '}}]});};
   const r=await interpretar('hola asesor');
   assert.equal(groq,1,'una clave inválida no se prueba con el otro modelo de Groq');
-  assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/JSON inválida/);
+  assert.equal(r.motor,'respaldo_groq');assert.match(r.diagnostico_groq,/HTTP 401/);
+}));
+
+test('Por defecto responde DeepSeek primero y Groq queda de respaldo',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  const urls=[];
+  globalThis.fetch=async(u)=>{urls.push(u.includes('deepseek')?'deepseek':'groq');return u.includes('deepseek')?json({error:{code:'x'}},503):buena('Hola desde Groq');};
+  const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+  assert.equal(urls[0],'deepseek');assert.ok(urls.includes('groq'));assert.equal(r.proveedor_ia,'groq');
+}));
+test('Con IA_PROVEEDOR_PRIMERO=groq se invierte el orden sin tocar código',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek',IA_PROVEEDOR_PRIMERO:'groq'},async()=>{
+  const urls=[];
+  globalThis.fetch=async(u)=>{urls.push(u.includes('deepseek')?'deepseek':'groq');return buena('Hola');};
+  const r=await interpretar('hola asesor',{fecha_hoy:'2026-11-13'});
+  assert.deepEqual(urls,['groq']);assert.equal(r.proveedor_ia,'groq');
 }));

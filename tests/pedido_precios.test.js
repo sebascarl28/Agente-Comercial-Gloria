@@ -80,6 +80,9 @@ test('Total de dos productos se calcula con precios reales, IGV y cantidades cor
 test('Consultar stock o descuento no se confunde con pedir precios',()=>{
  assert.equal(pidePrecio('¿cuánto es el stock de fresca?'),false);
  assert.equal(pidePrecio('¿cuánto es el descuento?'),false);
+ assert.equal(pidePrecio('¿Me dices la tarifa por caja?'),true);
+ assert.equal(pidePrecio('¿Qué costo tiene cada leche?'),true);
+ assert.equal(pidePrecio('¿Cuál es el costo del crédito?'),false);
 });
 test('Una variedad sugerida por IA se consulta en el catálogo, sin aceptar cifras de la IA',()=>{
  const pref=preferenciasPrecio('¿a cuánto me saldría?',{},null,{motor:'groq',producto:'PRD-003',cantidad:100});
