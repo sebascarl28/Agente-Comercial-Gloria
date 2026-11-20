@@ -67,6 +67,24 @@ test('Si DeepSeek falla se prueba Groq',()=>conEntorno({GROQ_API_KEY:'clave-groq
   const r=await interpretar('hola asesor');
   assert.deepEqual(proveedores,['deepseek','groq']);assert.equal(r.proveedor_ia,'groq');
 }));
+test('DeepSeek recupera una respuesta en blanco con otro formato y acepta JSON envuelto',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  const formatos=[];
+  globalThis.fetch=async(u,o)=>{
+    assert.match(u,/deepseek/,'no necesita llamar a Groq');
+    const cuerpo=JSON.parse(o.body);formatos.push(cuerpo.response_format.type);
+    return formatos.length===1?json({choices:[{message:{content:'    '}}]}):json({choices:[{message:{content:'Aquí está:\n```json\n{"accion":"cotizar","producto":"PRD-002","cantidad":20,"lineas_sugeridas":[{"id":"PRD-002","cantidad":20}]}\n```'}}]});
+  };
+  const r=await interpretar('necesito 20 cajas de evaporada');
+  assert.deepEqual(formatos,['json_object','text']);
+  assert.equal(r.proveedor_ia,'deepseek');assert.equal(r.cantidad,20);
+  assert.deepEqual(r.lineas_sugeridas,[{id:'PRD-002',cantidad:20}]);
+}));
+test('Una respuesta no estructurada de DeepSeek nunca autoriza una operación',()=>conEntorno({GROQ_API_KEY:'clave-groq',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
+  let deepseek=0;
+  globalThis.fetch=async(u)=>{if(u.includes('deepseek')){deepseek++;return json({choices:[{message:{content:'Claro, pedido confirmado'}}]});}return buena('Groq validó la conversación');};
+  const r=await interpretar('hola asesor');
+  assert.equal(deepseek,3);assert.equal(r.proveedor_ia,'groq');
+}));
 test('Si DeepSeek responde en blanco y la clave de Groq es inválida se usan reglas locales',()=>conEntorno({GROQ_API_KEY:'mala',DEEPSEEK_API_KEY:'clave-deepseek'},async()=>{
   let groq=0;
   globalThis.fetch=async(u)=>{if(u.includes('groq')){groq++;return json({error:{code:'invalid_api_key'}},401);}return json({choices:[{message:{content:'    '}}]});};
